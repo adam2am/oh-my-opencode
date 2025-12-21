@@ -98,6 +98,10 @@ export function createBuiltinAgents(
       config = mergeAgentConfig(config, override)
     }
 
+    if (override) {
+      config = mergeAgentConfig(config, override)
+    }
+
     result[name] = config
   }
 
