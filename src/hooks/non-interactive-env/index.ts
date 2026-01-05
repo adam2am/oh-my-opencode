@@ -78,6 +78,11 @@ export function createNonInteractiveEnvHook(_ctx: PluginInput) {
       // ignoring any args.env we might set. Prepend export statement to command.
       // Uses `export VAR=val;` format to ensure variables apply to ALL commands
       // in a chain (e.g., `git add file && git rebase --continue`).
+      // Skip if env vars already present (avoid duplication from model or previous hook runs)
+      if (command.includes("CI=true") || command.startsWith("export CI=")) {
+        return
+      }
+
       const envPrefix = buildEnvPrefix(NON_INTERACTIVE_ENV)
       output.args.command = `${envPrefix} ${command}`
 
