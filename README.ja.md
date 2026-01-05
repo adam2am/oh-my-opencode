@@ -10,7 +10,6 @@
 > | [<img alt="Discord link" src="https://img.shields.io/discord/1452487457085063218?color=5865F2&label=discord&labelColor=black&logo=discord&logoColor=white&style=flat-square" width="156px" />](https://discord.gg/PUwSMR9XNk) | [Discordコミュニティ](https://discord.gg/PUwSMR9XNk)に参加して、コントリビューターや`oh-my-opencode`仲間とつながりましょう。 |
 > | :-----| :----- |
 > | [<img alt="X link" src="https://img.shields.io/badge/Follow-%40justsisyphus-00CED1?style=flat-square&logo=x&labelColor=black" width="156px" />](https://x.com/justsisyphus) | `oh-my-opencode`に関するニュースは私のXアカウントで投稿していましたが、無実の罪で凍結されたため、<br />[@justsisyphus](https://x.com/justsisyphus)が代わりに更新を投稿しています。 |
-> | [<img alt="Sponsor" src="https://img.shields.io/badge/Sponsor-❤-ff69b4?style=flat-square&logo=github-sponsors&labelColor=black" width="156px" />](https://github.com/sponsors/code-yeongyu) | [スポンサーになって](https://github.com/sponsors/code-yeongyu) `oh-my-opencode` の開発を応援してください。皆さまのご支援がこのプロジェクトを成長させます。 |
 
 <!-- <CENTERED SECTION FOR GITHUB DISPLAY> -->
 
@@ -298,7 +297,7 @@ opencode auth login
 {
   "plugin": [
     "oh-my-opencode",
-    "opencode-antigravity-auth@1.1.2"
+    "opencode-antigravity-auth@1.2.7"
   ]
 }
 ```
@@ -323,7 +322,7 @@ opencode auth login
 }
 ```
 
-**利用可能なモデル名**: `google/gemini-3-pro-high`, `google/gemini-3-pro-medium`, `google/gemini-3-pro-low`, `google/gemini-3-flash`, `google/gemini-3-flash`, `google/gemini-3-flash-lite`, `google/claude-sonnet-4-5`, `google/claude-sonnet-4-5-thinking`, `google/claude-opus-4-5-thinking`, `google/gpt-oss-120b-medium`
+**利用可能なモデル名**: `google/antigravity-gemini-3-pro-high`, `google/antigravity-gemini-3-pro-low`, `google/antigravity-gemini-3-flash`, `google/antigravity-claude-sonnet-4-5`, `google/antigravity-claude-sonnet-4-5-thinking-low`, `google/antigravity-claude-sonnet-4-5-thinking-medium`, `google/antigravity-claude-sonnet-4-5-thinking-high`, `google/antigravity-claude-opus-4-5-thinking-low`, `google/antigravity-claude-opus-4-5-thinking-medium`, `google/antigravity-claude-opus-4-5-thinking-high`, `google/gemini-3-pro-preview`, `google/gemini-3-flash-preview`, `google/gemini-2.5-pro`, `google/gemini-2.5-flash`
 
 その後、認証を行います：
 
@@ -346,26 +345,19 @@ opencode auth login
 {
   "plugin": [
     "oh-my-opencode",
-    "opencode-openai-codex-auth@4.1.1"
+    "opencode-openai-codex-auth@4.3.0"
   ]
 }
 ```
 
-**重要**: 現在、公式 npm パッケージに 400 エラー (`"No tool call found for function call output with call_id"`) を引き起こすバグがあります。修正版がリリースされるまでは、**ホットフィックスブランチの使用を推奨します**。`~/.config/opencode/package.json` を修正してください：
+##### モデル設定
 
-```json
-{
-  "dependencies": {
-    "opencode-openai-codex-auth": "code-yeongyu/opencode-openai-codex-auth#fix/orphaned-function-call-output-with-tools"
-  }
-}
-```
-
-その後、`cd ~/.config/opencode && bun i` を実行してください。`opencode.json` ではバージョン指定なしで `"opencode-openai-codex-auth"` として使用します（`@4.1.0` は除外）。
-
-#### 4.3.1 モデル設定
 `opencode.json` に完全なモデル設定も構成する必要があります。
-[opencode-openai-codex-auth ドキュメント](https://github.com/numman-ali/opencode-openai-codex-auth)を読み、[`config/full-opencode.json`](https://github.com/numman-ali/opencode-openai-codex-auth/blob/main/config/full-opencode.json) から provider/models 設定をコピーして、ユーザーの既存のセットアップを壊さないよう慎重にマージしてください。
+[opencode-openai-codex-auth ドキュメント](https://github.com/numman-ali/opencode-openai-codex-auth)を読み、[`config/opencode-modern.json`](https://github.com/numman-ali/opencode-openai-codex-auth/blob/main/config/opencode-modern.json)（OpenCode v1.0.210+）または [`config/opencode-legacy.json`](https://github.com/numman-ali/opencode-openai-codex-auth/blob/main/config/opencode-legacy.json)（旧バージョン）から provider/models 設定をコピーして、ユーザーの既存のセットアップを壊さないよう慎重にマージしてください。
+
+**利用可能なモデル**: `openai/gpt-5.2`, `openai/gpt-5.2-codex`, `openai/gpt-5.1-codex-max`, `openai/gpt-5.1-codex`, `openai/gpt-5.1-codex-mini`, `openai/gpt-5.1`
+
+**Variants** (OpenCode v1.0.210+): `--variant=<none|low|medium|high|xhigh>` オプションで推論強度を制御できます。
 
 その後、認証を行います：
 
@@ -564,7 +556,6 @@ OpenCode セッション履歴をナビゲートおよび検索するための�
     ```
 - **Online**: プロジェクトのルールがすべてではありません。拡張機能のための内蔵 MCP を提供します：
   - **context7**: ライブラリの最新公式ドキュメントを取得
-  - **websearch_exa**: Exa AI を活用したリアルタイムウェブ検索
   - **grep_app**: 数百万の公開 GitHub リポジトリから超高速コード検索（実装例を探すのに最適）
 
 #### マルチモーダルを活用し、トークンは節約する
@@ -656,7 +647,7 @@ Oh My OpenCode は以下の場所からフックを読み込んで実行しま�
 
 | トグル     | `false` の場合、ロードが無効になるパス                                                | 影響を受けないもの                                    |
 | ---------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `mcp`      | `~/.claude/.mcp.json`, `./.mcp.json`, `./.claude/.mcp.json`                           | 内蔵 MCP (context7, websearch_exa)                    |
+| `mcp`      | `~/.claude/.mcp.json`, `./.mcp.json`, `./.claude/.mcp.json`                           | 内蔵 MCP (context7, grep_app)                         |
 | `commands` | `~/.claude/commands/*.md`, `./.claude/commands/*.md`                                  | `~/.config/opencode/command/`, `./.opencode/command/` |
 | `skills`   | `~/.claude/skills/*/SKILL.md`, `./.claude/skills/*/SKILL.md`                          | -                                                     |
 | `agents`   | `~/.claude/agents/*.md`, `./.claude/agents/*.md`                                      | 内蔵エージェント (oracle, librarian 等)               |
@@ -929,17 +920,16 @@ Oh My OpenCode は以下の場所からフックを読み込んで実行しま�
 
 ### MCPs
 
-コンテキスト7、Exa、grep.app MCP がデフォルトで有効になっています。
+Context7、grep.app MCP がデフォルトで有効になっています。
 
 - **context7**: ライブラリの最新公式ドキュメントを取得
-- **websearch_exa**: Exa AI を活用したリアルタイムウェブ検索
 - **grep_app**: [grep.app](https://grep.app) を通じて数百万の公開 GitHub リポジトリから超高速コード検索
 
 不要であれば、`~/.config/opencode/oh-my-opencode.json` または `.opencode/oh-my-opencode.json` の `disabled_mcps` を使用して無効化できます：
 
 ```json
 {
-  "disabled_mcps": ["context7", "websearch_exa", "grep_app"]
+  "disabled_mcps": ["context7", "grep_app"]
 }
 ```
 

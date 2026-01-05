@@ -1,5 +1,6 @@
-import { existsSync, readdirSync, readFileSync, realpathSync, type Dirent } from "fs"
+import { promises as fs, type Dirent } from "fs"
 import { join, basename } from "path"
+import { homedir } from "os"
 import { parseFrontmatter } from "../../shared/frontmatter"
 import { sanitizeModelField } from "../../shared/model-sanitizer"
 import { isMarkdownFile } from "../../shared/file-utils"
@@ -7,19 +8,21 @@ import { getClaudeConfigDir } from "../../shared"
 import { log } from "../../shared/logger"
 import type { CommandScope, CommandDefinition, CommandFrontmatter, LoadedCommand } from "./types"
 
-function loadCommandsFromDir(
+async function loadCommandsFromDir(
   commandsDir: string,
   scope: CommandScope,
   visited: Set<string> = new Set(),
   prefix: string = ""
-): LoadedCommand[] {
-  if (!existsSync(commandsDir)) {
+): Promise<LoadedCommand[]> {
+  try {
+    await fs.access(commandsDir)
+  } catch {
     return []
   }
 
   let realPath: string
   try {
-    realPath = realpathSync(commandsDir)
+    realPath = await fs.realpath(commandsDir)
   } catch (error) {
     log(`Failed to resolve command directory: ${commandsDir}`, error)
     return []
@@ -32,7 +35,7 @@ function loadCommandsFromDir(
 
   let entries: Dirent[]
   try {
-    entries = readdirSync(commandsDir, { withFileTypes: true })
+    entries = await fs.readdir(commandsDir, { withFileTypes: true })
   } catch (error) {
     log(`Failed to read command directory: ${commandsDir}`, error)
     return []
@@ -45,7 +48,8 @@ function loadCommandsFromDir(
       if (entry.name.startsWith(".")) continue
       const subDirPath = join(commandsDir, entry.name)
       const subPrefix = prefix ? `${prefix}:${entry.name}` : entry.name
-      commands.push(...loadCommandsFromDir(subDirPath, scope, visited, subPrefix))
+      const subCommands = await loadCommandsFromDir(subDirPath, scope, visited, subPrefix)
+      commands.push(...subCommands)
       continue
     }
 
@@ -56,7 +60,7 @@ function loadCommandsFromDir(
     const commandName = prefix ? `${prefix}:${baseCommandName}` : baseCommandName
 
     try {
-      const content = readFileSync(commandPath, "utf-8")
+      const content = await fs.readFile(commandPath, "utf-8")
       const { data, body } = parseFrontmatter<CommandFrontmatter>(content)
 
       const wrappedTemplate = `<command-instruction>
@@ -105,27 +109,36 @@ function commandsToRecord(commands: LoadedCommand[]): Record<string, CommandDefi
   return result
 }
 
-export function loadUserCommands(): Record<string, CommandDefinition> {
+export async function loadUserCommands(): Promise<Record<string, CommandDefinition>> {
   const userCommandsDir = join(getClaudeConfigDir(), "commands")
-  const commands = loadCommandsFromDir(userCommandsDir, "user")
+  const commands = await loadCommandsFromDir(userCommandsDir, "user")
   return commandsToRecord(commands)
 }
 
-export function loadProjectCommands(): Record<string, CommandDefinition> {
+export async function loadProjectCommands(): Promise<Record<string, CommandDefinition>> {
   const projectCommandsDir = join(process.cwd(), ".claude", "commands")
-  const commands = loadCommandsFromDir(projectCommandsDir, "project")
+  const commands = await loadCommandsFromDir(projectCommandsDir, "project")
   return commandsToRecord(commands)
 }
 
-export function loadOpencodeGlobalCommands(): Record<string, CommandDefinition> {
-  const { homedir } = require("os")
+export async function loadOpencodeGlobalCommands(): Promise<Record<string, CommandDefinition>> {
   const opencodeCommandsDir = join(homedir(), ".config", "opencode", "command")
-  const commands = loadCommandsFromDir(opencodeCommandsDir, "opencode")
+  const commands = await loadCommandsFromDir(opencodeCommandsDir, "opencode")
   return commandsToRecord(commands)
 }
 
-export function loadOpencodeProjectCommands(): Record<string, CommandDefinition> {
+export async function loadOpencodeProjectCommands(): Promise<Record<string, CommandDefinition>> {
   const opencodeProjectDir = join(process.cwd(), ".opencode", "command")
-  const commands = loadCommandsFromDir(opencodeProjectDir, "opencode-project")
+  const commands = await loadCommandsFromDir(opencodeProjectDir, "opencode-project")
   return commandsToRecord(commands)
+}
+
+export async function loadAllCommands(): Promise<Record<string, CommandDefinition>> {
+  const [user, project, global, projectOpencode] = await Promise.all([
+    loadUserCommands(),
+    loadProjectCommands(),
+    loadOpencodeGlobalCommands(),
+    loadOpencodeProjectCommands(),
+  ])
+  return { ...projectOpencode, ...global, ...project, ...user }
 }

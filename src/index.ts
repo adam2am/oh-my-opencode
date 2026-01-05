@@ -27,6 +27,11 @@ import {
   createAutoSlashCommandHook,
   createEditErrorRecoveryHook,
 } from "./hooks";
+import {
+  contextCollector,
+  createContextInjectorHook,
+  createContextInjectorMessagesTransformHook,
+} from "./features/context-injector";
 import { createGoogleAntigravityAuthPlugin } from "./auth/antigravity";
 import {
   discoverUserClaudeSkills,
@@ -48,9 +53,11 @@ import {
   createLookAt,
   createSkillTool,
   createSkillMcpTool,
+  createSlashcommandTool,
+  discoverCommandsSync,
   sessionExists,
   interactive_bash,
-  getTmuxPath,
+  startTmuxCheck,
 } from "./tools";
 import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
@@ -61,6 +68,9 @@ import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
+  // Start background tmux check immediately
+  startTmuxCheck();
+
   const pluginConfig = loadPluginConfig(ctx.directory, ctx);
   const disabledHooks = new Set(pluginConfig.disabled_hooks ?? []);
   const isHookEnabled = (hookName: HookName) => !disabledHooks.has(hookName);
@@ -130,6 +140,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const keywordDetector = isHookEnabled("keyword-detector")
     ? createKeywordDetectorHook(ctx)
     : null;
+  const contextInjector = createContextInjectorHook(contextCollector);
+  const contextInjectorMessagesTransform =
+    createContextInjectorMessagesTransformHook(contextCollector);
   const agentUsageReminder = isHookEnabled("agent-usage-reminder")
     ? createAgentUsageReminderHook(ctx)
     : null;
@@ -193,13 +206,19 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     return true;
   });
   const includeClaudeSkills = pluginConfig.claude_code?.skills !== false;
+  const [userSkills, globalSkills, projectSkills, opencodeProjectSkills] = await Promise.all([
+    includeClaudeSkills ? discoverUserClaudeSkills() : Promise.resolve([]),
+    discoverOpencodeGlobalSkills(),
+    includeClaudeSkills ? discoverProjectClaudeSkills() : Promise.resolve([]),
+    discoverOpencodeProjectSkills(),
+  ]);
   const mergedSkills = mergeSkills(
     builtinSkills,
     pluginConfig.skills,
-    includeClaudeSkills ? discoverUserClaudeSkills() : [],
-    discoverOpencodeGlobalSkills(),
-    includeClaudeSkills ? discoverProjectClaudeSkills() : [],
-    discoverOpencodeProjectSkills()
+    userSkills,
+    globalSkills,
+    projectSkills,
+    opencodeProjectSkills
   );
   const skillMcpManager = new SkillMcpManager();
   const getSessionIDForMcp = () => getMainSessionID() || "";
@@ -214,12 +233,15 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     getSessionID: getSessionIDForMcp,
   });
 
-  const googleAuthHooks =
-    pluginConfig.google_auth !== false
-      ? await createGoogleAntigravityAuthPlugin(ctx)
-      : null;
+  const commands = discoverCommandsSync();
+  const slashcommandTool = createSlashcommandTool({
+    commands,
+    skills: mergedSkills,
+  });
 
-  const tmuxAvailable = await getTmuxPath();
+  const googleAuthHooks = pluginConfig.google_auth !== false
+    ? await createGoogleAntigravityAuthPlugin(ctx)
+    : null;
 
   const configHandler = createConfigHandler({
     ctx,
@@ -237,12 +259,18 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       look_at: lookAt,
       skill: skillTool,
       skill_mcp: skillMcpTool,
-      ...(tmuxAvailable ? { interactive_bash } : {}),
+      slashcommand: slashcommandTool,
+      interactive_bash,
     },
 
     "chat.message": async (input, output) => {
+      if (input.agent === "Sisyphus") {
+        (output.message as Record<string, unknown>).variant = "max"
+      }
+
       await claudeCodeHooks["chat.message"]?.(input, output);
       await keywordDetector?.["chat.message"]?.(input, output);
+      await contextInjector["chat.message"]?.(input, output);
       await autoSlashCommand?.["chat.message"]?.(input, output);
 
       if (ralphLoop) {
@@ -303,6 +331,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       input: Record<string, never>,
       output: { messages: Array<{ info: unknown; parts: unknown[] }> }
     ) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await contextInjectorMessagesTransform?.["experimental.chat.messages.transform"]?.(input, output as any);
       await thinkingBlockValidator?.[
         "experimental.chat.messages.transform"
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

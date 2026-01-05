@@ -21,6 +21,7 @@ import { loadAllPluginComponents } from "../features/claude-code-plugin-loader";
 import { createBuiltinMcps } from "../mcp";
 import type { OhMyOpenCodeConfig } from "../config";
 import { log } from "../shared";
+import { migrateAgentConfig } from "../shared/permission-compat";
 import { PLAN_SYSTEM_PROMPT, PLAN_PERMISSION } from "../agents/plan-prompt";
 import type { ModelCacheState } from "../plugin-state";
 
@@ -95,13 +96,32 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       config.model as string | undefined
     );
 
-    const userAgents = (pluginConfig.claude_code?.agents ?? true)
+    const rawUserAgents = (pluginConfig.claude_code?.agents ?? true)
       ? loadUserAgents()
       : {};
-    const projectAgents = (pluginConfig.claude_code?.agents ?? true)
+    const rawProjectAgents = (pluginConfig.claude_code?.agents ?? true)
       ? loadProjectAgents()
       : {};
-    const pluginAgents = pluginComponents.agents;
+    const rawPluginAgents = pluginComponents.agents;
+
+    const userAgents = Object.fromEntries(
+      Object.entries(rawUserAgents).map(([k, v]) => [
+        k,
+        v ? migrateAgentConfig(v as Record<string, unknown>) : v,
+      ])
+    );
+    const projectAgents = Object.fromEntries(
+      Object.entries(rawProjectAgents).map(([k, v]) => [
+        k,
+        v ? migrateAgentConfig(v as Record<string, unknown>) : v,
+      ])
+    );
+    const pluginAgents = Object.fromEntries(
+      Object.entries(rawPluginAgents).map(([k, v]) => [
+        k,
+        v ? migrateAgentConfig(v as Record<string, unknown>) : v,
+      ])
+    );
 
     const isSisyphusEnabled = pluginConfig.sisyphus_agent?.disabled !== true;
     const builderEnabled =
@@ -132,10 +152,13 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       if (builderEnabled) {
         const { name: _buildName, ...buildConfigWithoutName } =
           configAgent?.build ?? {};
+        const migratedBuildConfig = migrateAgentConfig(
+          buildConfigWithoutName as Record<string, unknown>
+        );
         const openCodeBuilderOverride =
           pluginConfig.agents?.["OpenCode-Builder"];
         const openCodeBuilderBase = {
-          ...buildConfigWithoutName,
+          ...migratedBuildConfig,
           description: `${configAgent?.build?.description ?? "Build agent"} (OpenCode default)`,
         };
 
@@ -145,12 +168,17 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       }
 
       if (plannerEnabled) {
-        const { name: _planName, ...planConfigWithoutName } =
+        const { name: _planName, mode: _planMode, ...planConfigWithoutName } =
           configAgent?.plan ?? {};
+        const migratedPlanConfig = migrateAgentConfig(
+          planConfigWithoutName as Record<string, unknown>
+        );
         const plannerSisyphusOverride =
           pluginConfig.agents?.["Planner-Sisyphus"];
+        const defaultModel = config.model as string | undefined;
         const plannerSisyphusBase = {
-          ...planConfigWithoutName,
+          model: (migratedPlanConfig as Record<string, unknown>).model ?? defaultModel,
+          mode: "primary" as const,
           prompt: PLAN_SYSTEM_PROMPT,
           permission: PLAN_PERMISSION,
           description: `${configAgent?.plan?.description ?? "Plan agent"} (OhMyOpenCode version)`,
@@ -162,15 +190,28 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
           : plannerSisyphusBase;
       }
 
-      const filteredConfigAgents = configAgent
-        ? Object.fromEntries(
-            Object.entries(configAgent).filter(([key]) => {
+    const filteredConfigAgents = configAgent
+      ? Object.fromEntries(
+          Object.entries(configAgent)
+            .filter(([key]) => {
               if (key === "build") return false;
               if (key === "plan" && replacePlan) return false;
               return true;
             })
-          )
+            .map(([key, value]) => [
+              key,
+              value ? migrateAgentConfig(value as Record<string, unknown>) : value,
+            ])
+        )
+      : {};
+
+      const migratedBuild = configAgent?.build
+        ? migrateAgentConfig(configAgent.build as Record<string, unknown>)
         : {};
+
+      const planDemoteConfig = replacePlan
+        ? { mode: "subagent" as const, hidden: true }
+        : undefined;
 
       config.agent = {
         ...agentConfig,
@@ -181,10 +222,8 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         ...projectAgents,
         ...pluginAgents,
         ...filteredConfigAgents,
-        build: { ...configAgent?.build, mode: "subagent" },
-        ...(replacePlan
-          ? { plan: { ...configAgent?.plan, mode: "subagent" } }
-          : {}),
+        build: { ...migratedBuild, mode: "subagent", hidden: true },
+        ...(planDemoteConfig ? { plan: planDemoteConfig } : {}),
       };
     } else {
       config.agent = {
@@ -243,24 +282,31 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     };
 
     const builtinCommands = loadBuiltinCommands(pluginConfig.disabled_commands);
-    const userCommands = (pluginConfig.claude_code?.commands ?? true)
-      ? loadUserCommands()
-      : {};
-    const opencodeGlobalCommands = loadOpencodeGlobalCommands();
     const systemCommands = (config.command as Record<string, unknown>) ?? {};
-    const projectCommands = (pluginConfig.claude_code?.commands ?? true)
-      ? loadProjectCommands()
-      : {};
-    const opencodeProjectCommands = loadOpencodeProjectCommands();
 
-    const userSkills = (pluginConfig.claude_code?.skills ?? true)
-      ? loadUserSkills()
-      : {};
-    const projectSkills = (pluginConfig.claude_code?.skills ?? true)
-      ? loadProjectSkills()
-      : {};
-    const opencodeGlobalSkills = loadOpencodeGlobalSkills();
-    const opencodeProjectSkills = loadOpencodeProjectSkills();
+    // Parallel loading of all commands and skills for faster startup
+    const includeClaudeCommands = pluginConfig.claude_code?.commands ?? true;
+    const includeClaudeSkills = pluginConfig.claude_code?.skills ?? true;
+
+    const [
+      userCommands,
+      projectCommands,
+      opencodeGlobalCommands,
+      opencodeProjectCommands,
+      userSkills,
+      projectSkills,
+      opencodeGlobalSkills,
+      opencodeProjectSkills,
+    ] = await Promise.all([
+      includeClaudeCommands ? loadUserCommands() : Promise.resolve({}),
+      includeClaudeCommands ? loadProjectCommands() : Promise.resolve({}),
+      loadOpencodeGlobalCommands(),
+      loadOpencodeProjectCommands(),
+      includeClaudeSkills ? loadUserSkills() : Promise.resolve({}),
+      includeClaudeSkills ? loadProjectSkills() : Promise.resolve({}),
+      loadOpencodeGlobalSkills(),
+      loadOpencodeProjectSkills(),
+    ]);
 
     config.command = {
       ...builtinCommands,
