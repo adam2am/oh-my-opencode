@@ -26,6 +26,10 @@ import {
   createRalphLoopHook,
   createAutoSlashCommandHook,
   createEditErrorRecoveryHook,
+  createTaskResumeInfoHook,
+  createStartWorkHook,
+  createSisyphusOrchestratorHook,
+  createPrometheusMdOnlyHook,
 } from "./hooks";
 import {
   contextCollector,
@@ -56,13 +60,15 @@ import {
   createSlashcommandTool,
   discoverCommandsSync,
   sessionExists,
+  createSisyphusTask,
   interactive_bash,
   startTmuxCheck,
 } from "./tools";
 import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
+import { initTaskToastManager } from "./features/task-toast-manager";
 import { type HookName } from "./config";
-import { log } from "./shared";
+import { log, detectExternalNotificationPlugin, getNotificationConflictWarning } from "./shared";
 import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
@@ -83,9 +89,24 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const sessionRecovery = isHookEnabled("session-recovery")
     ? createSessionRecoveryHook(ctx, { experimental: pluginConfig.experimental })
     : null;
-  const sessionNotification = isHookEnabled("session-notification")
-    ? createSessionNotification(ctx)
-    : null;
+  
+  // Check for conflicting notification plugins before creating session-notification
+  let sessionNotification = null;
+  if (isHookEnabled("session-notification")) {
+    const forceEnable = pluginConfig.notification?.force_enable ?? false;
+    const externalNotifier = detectExternalNotificationPlugin(ctx.directory);
+    
+    if (externalNotifier.detected && !forceEnable) {
+      // External notification plugin detected - skip our notification to avoid conflicts
+      console.warn(getNotificationConflictWarning(externalNotifier.pluginName!));
+      log("session-notification disabled due to external notifier conflict", {
+        detected: externalNotifier.pluginName,
+        allPlugins: externalNotifier.allPlugins,
+      });
+    } else {
+      sessionNotification = createSessionNotification(ctx);
+    }
+  }
 
   const commentChecker = isHookEnabled("comment-checker")
     ? createCommentCheckerHooks(pluginConfig.comment_checker)
@@ -105,9 +126,14 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createEmptyTaskResponseDetectorHook(ctx)
     : null;
   const thinkMode = isHookEnabled("think-mode") ? createThinkModeHook() : null;
-  const claudeCodeHooks = createClaudeCodeHooksHook(ctx, {
-    disabledHooks: (pluginConfig.claude_code?.hooks ?? true) ? undefined : true,
-  });
+  const claudeCodeHooks = createClaudeCodeHooksHook(
+    ctx,
+    {
+      disabledHooks: (pluginConfig.claude_code?.hooks ?? true) ? undefined : true,
+      keywordDetectorDisabled: !isHookEnabled("keyword-detector"),
+    },
+    contextCollector
+  );
   const anthropicContextWindowLimitRecovery = isHookEnabled(
     "anthropic-context-window-limit-recovery"
   )
@@ -166,15 +192,27 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       })
     : null;
 
-  const autoSlashCommand = isHookEnabled("auto-slash-command")
-    ? createAutoSlashCommandHook()
-    : null;
-
   const editErrorRecovery = isHookEnabled("edit-error-recovery")
     ? createEditErrorRecoveryHook(ctx)
     : null;
 
+  const startWork = isHookEnabled("start-work")
+    ? createStartWorkHook(ctx)
+    : null;
+
+  const sisyphusOrchestrator = isHookEnabled("sisyphus-orchestrator")
+    ? createSisyphusOrchestratorHook(ctx)
+    : null;
+
+  const prometheusMdOnly = isHookEnabled("prometheus-md-only")
+    ? createPrometheusMdOnlyHook(ctx)
+    : null;
+
+  const taskResumeInfo = createTaskResumeInfoHook();
+
   const backgroundManager = new BackgroundManager(ctx);
+
+  initTaskToastManager(ctx.client);
 
   const todoContinuationEnforcer = isHookEnabled("todo-continuation-enforcer")
     ? createTodoContinuationEnforcer(ctx, { backgroundManager })
@@ -194,6 +232,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const callOmoAgent = createCallOmoAgent(ctx, backgroundManager);
   const lookAt = createLookAt(ctx);
+  const sisyphusTask = createSisyphusTask({
+    manager: backgroundManager,
+    client: ctx.client,
+    userCategories: pluginConfig.categories,
+  });
   const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
   const systemMcpNames = getSystemMcpServerNames();
   const builtinSkills = createBuiltinSkills().filter((skill) => {
@@ -239,6 +282,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     skills: mergedSkills,
   });
 
+  const autoSlashCommand = isHookEnabled("auto-slash-command")
+    ? createAutoSlashCommandHook({ skills: mergedSkills })
+    : null;
+
   const googleAuthHooks = pluginConfig.google_auth !== false
     ? await createGoogleAntigravityAuthPlugin(ctx)
     : null;
@@ -257,6 +304,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       ...backgroundTools,
       call_omo_agent: callOmoAgent,
       look_at: lookAt,
+      sisyphus_task: sisyphusTask,
       skill: skillTool,
       skill_mcp: skillMcpTool,
       slashcommand: slashcommandTool,
@@ -264,14 +312,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     },
 
     "chat.message": async (input, output) => {
-      if (input.agent === "Sisyphus") {
-        (output.message as Record<string, unknown>).variant = "max"
-      }
-
       await claudeCodeHooks["chat.message"]?.(input, output);
       await keywordDetector?.["chat.message"]?.(input, output);
       await contextInjector["chat.message"]?.(input, output);
       await autoSlashCommand?.["chat.message"]?.(input, output);
+      await startWork?.["chat.message"]?.(input, output);
 
       if (ralphLoop) {
         const parts = (
@@ -361,6 +406,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await agentUsageReminder?.event(input);
       await interactiveBashSession?.event(input);
       await ralphLoop?.event(input);
+      await sisyphusOrchestrator?.handler(input);
 
       const { event } = input;
       const props = event.properties as Record<string, unknown> | undefined;
@@ -418,6 +464,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await directoryAgentsInjector?.["tool.execute.before"]?.(input, output);
       await directoryReadmeInjector?.["tool.execute.before"]?.(input, output);
       await rulesInjector?.["tool.execute.before"]?.(input, output);
+      await prometheusMdOnly?.["tool.execute.before"]?.(input, output);
 
       if (input.tool === "task") {
         const args = output.args as Record<string, unknown>;
@@ -428,7 +475,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
         args.tools = {
           ...(args.tools as Record<string, boolean> | undefined),
-          background_task: false,
+          sisyphus_task: false,
           ...(isExploreOrLibrarian ? { call_omo_agent: false } : {}),
         };
       }
@@ -476,6 +523,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await agentUsageReminder?.["tool.execute.after"](input, output);
       await interactiveBashSession?.["tool.execute.after"](input, output);
       await editErrorRecovery?.["tool.execute.after"](input, output);
+      await sisyphusOrchestrator?.["tool.execute.after"]?.(input, output);
+      await taskResumeInfo["tool.execute.after"](input, output);
     },
   };
 };

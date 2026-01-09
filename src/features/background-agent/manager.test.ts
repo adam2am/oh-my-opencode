@@ -1,11 +1,12 @@
 import { describe, test, expect, beforeEach } from "bun:test"
-import type { BackgroundTask } from "./types"
+import type { BackgroundTask, ResumeInput } from "./types"
 
 const TASK_TTL_MS = 30 * 60 * 1000
 
 class MockBackgroundManager {
   private tasks: Map<string, BackgroundTask> = new Map()
   private notifications: Map<string, BackgroundTask[]> = new Map()
+  public resumeCalls: Array<{ sessionId: string; prompt: string }> = []
 
   addTask(task: BackgroundTask): void {
     this.tasks.set(task.id, task)
@@ -13,6 +14,15 @@ class MockBackgroundManager {
 
   getTask(id: string): BackgroundTask | undefined {
     return this.tasks.get(id)
+  }
+
+  findBySession(sessionID: string): BackgroundTask | undefined {
+    for (const task of this.tasks.values()) {
+      if (task.sessionID === sessionID) {
+        return task
+      }
+    }
+    return undefined
   }
 
   getTasksByParentSession(sessionID: string): BackgroundTask[] {
@@ -104,6 +114,29 @@ class MockBackgroundManager {
       count += notifications.length
     }
     return count
+  }
+
+  resume(input: ResumeInput): BackgroundTask {
+    const existingTask = this.findBySession(input.sessionId)
+    if (!existingTask) {
+      throw new Error(`Task not found for session: ${input.sessionId}`)
+    }
+
+    this.resumeCalls.push({ sessionId: input.sessionId, prompt: input.prompt })
+
+    existingTask.status = "running"
+    existingTask.completedAt = undefined
+    existingTask.error = undefined
+    existingTask.parentSessionID = input.parentSessionID
+    existingTask.parentMessageID = input.parentMessageID
+    existingTask.parentModel = input.parentModel
+
+    existingTask.progress = {
+      toolCalls: existingTask.progress?.toolCalls ?? 0,
+      lastUpdate: new Date(),
+    }
+
+    return existingTask
   }
 }
 
@@ -302,6 +335,74 @@ describe("BackgroundManager.getAllDescendantTasks", () => {
   })
 })
 
+describe("BackgroundManager.notifyParentSession - release ordering", () => {
+  test("should unblock queued task even when prompt hangs", async () => {
+    // #given - concurrency limit 1, task1 running, task2 waiting
+    const { ConcurrencyManager } = await import("./concurrency")
+    const concurrencyManager = new ConcurrencyManager({ defaultConcurrency: 1 })
+
+    await concurrencyManager.acquire("explore")
+
+    let task2Resolved = false
+    const task2Promise = concurrencyManager.acquire("explore").then(() => {
+      task2Resolved = true
+    })
+
+    await Promise.resolve()
+    expect(task2Resolved).toBe(false)
+
+    // #when - simulate notifyParentSession: release BEFORE prompt (fixed behavior)
+    let promptStarted = false
+    const simulateNotifyParentSession = async () => {
+      concurrencyManager.release("explore")
+
+      promptStarted = true
+      await new Promise(() => {})
+    }
+
+    simulateNotifyParentSession()
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // #then - task2 should be unblocked even though prompt never completes
+    expect(promptStarted).toBe(true)
+    await task2Promise
+    expect(task2Resolved).toBe(true)
+  })
+
+  test("should keep queue blocked if release is after prompt (demonstrates the bug)", async () => {
+    // #given - same setup
+    const { ConcurrencyManager } = await import("./concurrency")
+    const concurrencyManager = new ConcurrencyManager({ defaultConcurrency: 1 })
+
+    await concurrencyManager.acquire("explore")
+
+    let task2Resolved = false
+    concurrencyManager.acquire("explore").then(() => {
+      task2Resolved = true
+    })
+
+    await Promise.resolve()
+    expect(task2Resolved).toBe(false)
+
+    // #when - simulate BUGGY behavior: release AFTER prompt (in finally)
+    const simulateBuggyNotifyParentSession = async () => {
+      try {
+        await new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 50))
+      } finally {
+        concurrencyManager.release("explore")
+      }
+    }
+
+    await simulateBuggyNotifyParentSession().catch(() => {})
+
+    // #then - task2 resolves only after prompt completes (blocked during hang)
+    await Promise.resolve()
+    expect(task2Resolved).toBe(true)
+  })
+})
+
 describe("BackgroundManager.pruneStaleTasksAndNotifications", () => {
   let manager: MockBackgroundManager
 
@@ -414,3 +515,254 @@ describe("BackgroundManager.pruneStaleTasksAndNotifications", () => {
     expect(manager.getTask("task-fresh")).toBeDefined()
   })
 })
+
+describe("BackgroundManager.resume", () => {
+  let manager: MockBackgroundManager
+
+  beforeEach(() => {
+    // #given
+    manager = new MockBackgroundManager()
+  })
+
+  test("should throw error when task not found", () => {
+    // #given - empty manager
+
+    // #when / #then
+    expect(() => manager.resume({
+      sessionId: "non-existent",
+      prompt: "continue",
+      parentSessionID: "session-new",
+      parentMessageID: "msg-new",
+    })).toThrow("Task not found for session: non-existent")
+  })
+
+  test("should resume existing task and reset state to running", () => {
+    // #given
+    const completedTask = createMockTask({
+      id: "task-a",
+      sessionID: "session-a",
+      parentSessionID: "session-parent",
+      status: "completed",
+    })
+    completedTask.completedAt = new Date()
+    completedTask.error = "previous error"
+    manager.addTask(completedTask)
+
+    // #when
+    const result = manager.resume({
+      sessionId: "session-a",
+      prompt: "continue the work",
+      parentSessionID: "session-new-parent",
+      parentMessageID: "msg-new",
+    })
+
+    // #then
+    expect(result.status).toBe("running")
+    expect(result.completedAt).toBeUndefined()
+    expect(result.error).toBeUndefined()
+    expect(result.parentSessionID).toBe("session-new-parent")
+    expect(result.parentMessageID).toBe("msg-new")
+  })
+
+  test("should preserve task identity while updating parent context", () => {
+    // #given
+    const existingTask = createMockTask({
+      id: "task-a",
+      sessionID: "session-a",
+      parentSessionID: "old-parent",
+      description: "original description",
+      agent: "explore",
+    })
+    manager.addTask(existingTask)
+
+    // #when
+    const result = manager.resume({
+      sessionId: "session-a",
+      prompt: "new prompt",
+      parentSessionID: "new-parent",
+      parentMessageID: "new-msg",
+      parentModel: { providerID: "anthropic", modelID: "claude-opus" },
+    })
+
+    // #then
+    expect(result.id).toBe("task-a")
+    expect(result.sessionID).toBe("session-a")
+    expect(result.description).toBe("original description")
+    expect(result.agent).toBe("explore")
+    expect(result.parentModel).toEqual({ providerID: "anthropic", modelID: "claude-opus" })
+  })
+
+  test("should track resume calls with prompt", () => {
+    // #given
+    const task = createMockTask({
+      id: "task-a",
+      sessionID: "session-a",
+      parentSessionID: "session-parent",
+    })
+    manager.addTask(task)
+
+    // #when
+    manager.resume({
+      sessionId: "session-a",
+      prompt: "continue with additional context",
+      parentSessionID: "session-new",
+      parentMessageID: "msg-new",
+    })
+
+    // #then
+    expect(manager.resumeCalls).toHaveLength(1)
+    expect(manager.resumeCalls[0]).toEqual({
+      sessionId: "session-a",
+      prompt: "continue with additional context",
+    })
+  })
+
+  test("should preserve existing tool call count in progress", () => {
+    // #given
+    const taskWithProgress = createMockTask({
+      id: "task-a",
+      sessionID: "session-a",
+      parentSessionID: "session-parent",
+    })
+    taskWithProgress.progress = {
+      toolCalls: 42,
+      lastTool: "read",
+      lastUpdate: new Date(),
+    }
+    manager.addTask(taskWithProgress)
+
+    // #when
+    const result = manager.resume({
+      sessionId: "session-a",
+      prompt: "continue",
+      parentSessionID: "session-new",
+      parentMessageID: "msg-new",
+    })
+
+    // #then
+    expect(result.progress?.toolCalls).toBe(42)
+  })
+})
+
+describe("LaunchInput.skillContent", () => {
+  test("skillContent should be optional in LaunchInput type", () => {
+    // #given
+    const input: import("./types").LaunchInput = {
+      description: "test",
+      prompt: "test prompt",
+      agent: "explore",
+      parentSessionID: "parent-session",
+      parentMessageID: "parent-msg",
+    }
+
+    // #when / #then - should compile without skillContent
+    expect(input.skillContent).toBeUndefined()
+  })
+
+  test("skillContent can be provided in LaunchInput", () => {
+    // #given
+    const input: import("./types").LaunchInput = {
+      description: "test",
+      prompt: "test prompt",
+      agent: "explore",
+      parentSessionID: "parent-session",
+      parentMessageID: "parent-msg",
+      skillContent: "You are a playwright expert",
+    }
+
+    // #when / #then
+    expect(input.skillContent).toBe("You are a playwright expert")
+  })
+})
+
+describe("BackgroundManager.notifyParentSession - agent context preservation", () => {
+  test("should not pass agent field when parentAgent is undefined", async () => {
+    // #given
+    const task: BackgroundTask = {
+      id: "task-no-agent",
+      sessionID: "session-child",
+      parentSessionID: "session-parent",
+      parentMessageID: "msg-parent",
+      description: "task without agent context",
+      prompt: "test",
+      agent: "explore",
+      status: "completed",
+      startedAt: new Date(),
+      completedAt: new Date(),
+      parentAgent: undefined,
+      parentModel: { providerID: "anthropic", modelID: "claude-opus" },
+    }
+
+    // #when
+    const promptBody = buildNotificationPromptBody(task)
+
+    // #then
+    expect("agent" in promptBody).toBe(false)
+    expect(promptBody.model).toEqual({ providerID: "anthropic", modelID: "claude-opus" })
+  })
+
+  test("should include agent field when parentAgent is defined", async () => {
+    // #given
+    const task: BackgroundTask = {
+      id: "task-with-agent",
+      sessionID: "session-child",
+      parentSessionID: "session-parent",
+      parentMessageID: "msg-parent",
+      description: "task with agent context",
+      prompt: "test",
+      agent: "explore",
+      status: "completed",
+      startedAt: new Date(),
+      completedAt: new Date(),
+      parentAgent: "Sisyphus",
+      parentModel: { providerID: "anthropic", modelID: "claude-opus" },
+    }
+
+    // #when
+    const promptBody = buildNotificationPromptBody(task)
+
+    // #then
+    expect(promptBody.agent).toBe("Sisyphus")
+  })
+
+  test("should not pass model field when parentModel is undefined", async () => {
+    // #given
+    const task: BackgroundTask = {
+      id: "task-no-model",
+      sessionID: "session-child",
+      parentSessionID: "session-parent",
+      parentMessageID: "msg-parent",
+      description: "task without model context",
+      prompt: "test",
+      agent: "explore",
+      status: "completed",
+      startedAt: new Date(),
+      completedAt: new Date(),
+      parentAgent: "Sisyphus",
+      parentModel: undefined,
+    }
+
+    // #when
+    const promptBody = buildNotificationPromptBody(task)
+
+    // #then
+    expect("model" in promptBody).toBe(false)
+    expect(promptBody.agent).toBe("Sisyphus")
+  })
+})
+
+function buildNotificationPromptBody(task: BackgroundTask): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    parts: [{ type: "text", text: `[BACKGROUND TASK COMPLETED] Task "${task.description}" finished.` }],
+  }
+
+  if (task.parentAgent !== undefined) {
+    body.agent = task.parentAgent
+  }
+
+  if (task.parentModel?.providerID && task.parentModel?.modelID) {
+    body.model = { providerID: task.parentModel.providerID, modelID: task.parentModel.modelID }
+  }
+
+  return body
+}

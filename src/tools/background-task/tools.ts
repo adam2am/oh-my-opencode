@@ -74,6 +74,7 @@ export function createBackgroundTask(manager: BackgroundManager): ToolDefinition
           parentSessionID: ctx.sessionID,
           parentMessageID: ctx.messageID,
           parentModel,
+          parentAgent: ctx.agent ?? prevMessage?.agent,
         })
 
         ctx.metadata?.({

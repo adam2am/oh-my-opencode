@@ -1,4 +1,5 @@
 import { createBuiltinAgents } from "../agents";
+import { createSisyphusJuniorAgent } from "../agents/sisyphus-junior";
 import {
   loadUserCommands,
   loadProjectCommands,
@@ -22,7 +23,7 @@ import { createBuiltinMcps } from "../mcp";
 import type { OhMyOpenCodeConfig } from "../config";
 import { log } from "../shared";
 import { migrateAgentConfig } from "../shared/permission-compat";
-import { PLAN_SYSTEM_PROMPT, PLAN_PERMISSION } from "../agents/plan-prompt";
+import { PROMETHEUS_SYSTEM_PROMPT, PROMETHEUS_PERMISSION } from "../agents/prometheus-prompt";
 import type { ModelCacheState } from "../plugin-state";
 
 export interface ConfigHandlerDeps {
@@ -96,26 +97,18 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       config.model as string | undefined
     );
 
-    const rawUserAgents = (pluginConfig.claude_code?.agents ?? true)
+    // Claude Code agents: Do NOT apply permission migration
+    // Claude Code uses whitelist-based tools format which is semantically different
+    // from OpenCode's denylist-based permission system
+    const userAgents = (pluginConfig.claude_code?.agents ?? true)
       ? loadUserAgents()
       : {};
-    const rawProjectAgents = (pluginConfig.claude_code?.agents ?? true)
+    const projectAgents = (pluginConfig.claude_code?.agents ?? true)
       ? loadProjectAgents()
       : {};
-    const rawPluginAgents = pluginComponents.agents;
 
-    const userAgents = Object.fromEntries(
-      Object.entries(rawUserAgents).map(([k, v]) => [
-        k,
-        v ? migrateAgentConfig(v as Record<string, unknown>) : v,
-      ])
-    );
-    const projectAgents = Object.fromEntries(
-      Object.entries(rawProjectAgents).map(([k, v]) => [
-        k,
-        v ? migrateAgentConfig(v as Record<string, unknown>) : v,
-      ])
-    );
+    // Plugin agents: Apply permission migration for compatibility
+    const rawPluginAgents = pluginComponents.agents;
     const pluginAgents = Object.fromEntries(
       Object.entries(rawPluginAgents).map(([k, v]) => [
         k,
@@ -139,6 +132,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       explore?: { tools?: Record<string, unknown> };
       librarian?: { tools?: Record<string, unknown> };
       "multimodal-looker"?: { tools?: Record<string, unknown> };
+      "orchestrator-sisyphus"?: { tools?: Record<string, unknown> };
     };
     const configAgent = config.agent as AgentConfig | undefined;
 
@@ -148,6 +142,11 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       const agentConfig: Record<string, unknown> = {
         Sisyphus: builtinAgents.Sisyphus,
       };
+
+      agentConfig["Sisyphus-Junior"] = createSisyphusJuniorAgent({
+        model: "anthropic/claude-sonnet-4-5",
+        temperature: 0.1,
+      });
 
       if (builderEnabled) {
         const { name: _buildName, ...buildConfigWithoutName } =
@@ -173,21 +172,21 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         const migratedPlanConfig = migrateAgentConfig(
           planConfigWithoutName as Record<string, unknown>
         );
-        const plannerSisyphusOverride =
-          pluginConfig.agents?.["Planner-Sisyphus"];
+        const prometheusOverride =
+          pluginConfig.agents?.["Prometheus (Planner)"];
         const defaultModel = config.model as string | undefined;
-        const plannerSisyphusBase = {
-          model: (migratedPlanConfig as Record<string, unknown>).model ?? defaultModel,
+        const prometheusBase = {
+          model: defaultModel ?? "anthropic/claude-opus-4-5",
           mode: "primary" as const,
-          prompt: PLAN_SYSTEM_PROMPT,
-          permission: PLAN_PERMISSION,
-          description: `${configAgent?.plan?.description ?? "Plan agent"} (OhMyOpenCode version)`,
-          color: (configAgent?.plan?.color as string) ?? "#6495ED",
+          prompt: PROMETHEUS_SYSTEM_PROMPT,
+          permission: PROMETHEUS_PERMISSION,
+          description: `${configAgent?.plan?.description ?? "Plan agent"} (Prometheus - OhMyOpenCode)`,
+          color: (configAgent?.plan?.color as string) ?? "#FF6347",
         };
 
-        agentConfig["Planner-Sisyphus"] = plannerSisyphusOverride
-          ? { ...plannerSisyphusBase, ...plannerSisyphusOverride }
-          : plannerSisyphusBase;
+        agentConfig["Prometheus (Planner)"] = prometheusOverride
+          ? { ...prometheusBase, ...prometheusOverride }
+          : prometheusBase;
       }
 
     const filteredConfigAgents = configAgent
@@ -261,6 +260,13 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         task: false,
         call_omo_agent: false,
         look_at: false,
+      };
+    }
+    if (agentResult["orchestrator-sisyphus"]) {
+      agentResult["orchestrator-sisyphus"].tools = {
+        ...agentResult["orchestrator-sisyphus"].tools,
+        task: false,
+        call_omo_agent: false,
       };
     }
 

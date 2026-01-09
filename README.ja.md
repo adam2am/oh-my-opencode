@@ -1,15 +1,19 @@
 > [!NOTE]
 >
-> *「私はエージェントが生成したコードと人間が書いたコードを区別できない、しかしはるかに多くのことを達成できる世界を作り、ソフトウェア革命を起こすことを目指しています。私はこの旅に個人的な時間、情熱、そして資金を注ぎ込んできましたし、これからもそうし続けます。」*
+> [![Sisyphus Labs — Sisyphus is the agent that codes like your team.](./.github/assets/sisyphuslabs.png?v=2)](https://sisyphuslabs.ai)
+> > **Sisyphusの完全製品化バージョンを構築中です。フロンティアエージェントの未来を定義します。<br />[こちら](https://sisyphuslabs.ai)からウェイトリストに参加してください。**
+
+> [!TIP]
 >
-> [![The Orchestrator is coming](./.github/assets/orchestrator-sisyphus.png)](https://x.com/justsisyphus/status/2006250634354548963)
-> > **オーケストレーターが来ます。今週中に。[Xで通知を受け取る](https://x.com/justsisyphus/status/2006250634354548963)**
+> [![The Orchestrator is now available in beta.](./.github/assets/orchestrator-sisyphus.png?v=3)](https://github.com/code-yeongyu/oh-my-opencode/releases/tag/v3.0.0-beta.1)
+> > **オーケストレーターがベータ版で利用可能になりました。`oh-my-opencode@3.0.0-beta.1`を使用してインストールしてください。**
 >
 > 一緒に歩みましょう！
 >
 > | [<img alt="Discord link" src="https://img.shields.io/discord/1452487457085063218?color=5865F2&label=discord&labelColor=black&logo=discord&logoColor=white&style=flat-square" width="156px" />](https://discord.gg/PUwSMR9XNk) | [Discordコミュニティ](https://discord.gg/PUwSMR9XNk)に参加して、コントリビューターや`oh-my-opencode`仲間とつながりましょう。 |
 > | :-----| :----- |
 > | [<img alt="X link" src="https://img.shields.io/badge/Follow-%40justsisyphus-00CED1?style=flat-square&logo=x&labelColor=black" width="156px" />](https://x.com/justsisyphus) | `oh-my-opencode`に関するニュースは私のXアカウントで投稿していましたが、無実の罪で凍結されたため、<br />[@justsisyphus](https://x.com/justsisyphus)が代わりに更新を投稿しています。 |
+> | [<img alt="GitHub Follow" src="https://img.shields.io/github/followers/code-yeongyu?style=flat-square&logo=github&labelColor=black&color=24292f" width="156px" />](https://github.com/code-yeongyu) | GitHubで[@code-yeongyu](https://github.com/code-yeongyu)をフォローして、他のプロジェクトもチェックしてください。 |
 
 <!-- <CENTERED SECTION FOR GITHUB DISPLAY> -->
 
@@ -44,11 +48,17 @@
 
 ## ユーザーレビュー
 
+> "Cursorのサブスクリプションを解約しました。オープンソースコミュニティで信じられないことが起きています。" - [Arthur Guiot](https://x.com/arthur_guiot/status/2008736347092382053?s=20)
+
 > "人間が3ヶ月かかる仕事をClaude Codeが7日でやるなら、Sisyphusは1時間でやります。タスクが完了するまでただ動き続ける。It is a discipline agent." — B, Quant Researcher
 
 > "Oh My Opencodeを使って、たった1日で8000個のeslint警告を解消しました" — [Jacob Ferrari](https://x.com/jacobferrari_/status/2003258761952289061)
 
 > "Ohmyopencodeとralph loopを使って、一晩で45,000行のtauriアプリをSaaSウェブアプリに変換しました。インタビュープロンプトから始めて、質問に対する評価と推奨を求めました。作業する様子を見ているのは驚きでしたし、朝起きたらほぼ完成したウェブサイトがありました！" - [James Hargis](https://x.com/hargabyte/status/2007299688261882202)
+
+> "oh-my-opencodeを使ってください、もう戻れませんよ" — [d0t3ch](https://x.com/d0t3ch/status/2001685618200580503)
+
+> "何どうすごいのかあまり言語化できてないけど、開発体験が異次元に上がった。" - [苔硯:こけすずり](https://x.com/kokesuzuri/status/2008532913961529372?s=20)
 
 > "今週末はopen code、oh my opencode、supermemoryでマインクラフト/ソウルライクな何かを作る実験をしています。"
 > "昼食後の散歩に行く間に、しゃがみアニメーションを追加するよう頼みました。[動画]" - [MagiMetal](https://x.com/MagiMetal/status/2005374704178373023)
@@ -57,15 +67,7 @@
 
 > "@yeon_gyu_kimを説得できるなら雇うべきです。彼はopencodeに革命を起こしました" — [mysticaltech](https://x.com/mysticaltech/status/2001858758608376079)
 
-> "やばい、これマジで本物だ @androolloyd oh my opencode 最高すぎる" — [z80.eth](https://x.com/0xz80/status/2001815226505924791)
-
-> "oh-my-opencodeを使ってください、もう戻れませんよ" — [d0t3ch](https://x.com/d0t3ch/status/2001685618200580503)
-
-> "Oh My Opencodeは頂点に立っています、敵はいません" — [RyanOnThePath](https://x.com/RyanOnThePath/status/2001438321252118548)
-
 > "Oh My OpenCode Is Actually Insane" - [YouTube - Darren Builds AI](https://www.youtube.com/watch?v=G_Snfh2M41M)
-
-> "シジフォスという名前自体が美しいじゃないですか?" — Sigrid ([@sigridjin_eth](https://x.com/sigridjin_eth))
 
 ---
 
@@ -189,13 +191,15 @@ Windows から Linux に初めて乗り換えた時のこと、自分の思い�
 
 インストールするだけで、エージェントは以下のようなワークフローで働けるようになります：
 
-1. バックグラウンドタスクとして Gemini 3 Pro にフロントエンドを書かせている間に、Claude Opus 4.5 がバックエンドを作成し、デバッグで詰まったら GPT 5.2 に助けを求めます。フロントエンドの実装完了報告が来たら、それを検証して出荷します。
-2. 何か調べる必要があれば、公式ドキュメント、コードベースの全履歴、GitHub に公開されている実装例まで徹底的に調査します。単なる grep だけでなく、内蔵された LSP ツールや AST-Grep まで駆使します。
-3. LLM に仕事を任せる際、コンテキスト管理の心配はもう不要です。私がやります。
-    - OhMyOpenCode は複数のエージェントを積極的に活用し、コンテキストの負荷を軽減します。
-    - **あなたのエージェントは今や開発チームのリードです。あなたは AI マネージャーです。**
-4. 頼んだ仕事が完了するまで止まりません。
-5. このプロジェクトについて深く知りたくない？大丈夫です。ただ 'ultrathink' と入力してください。
+1. Sisyphusは自分自身でファイルを探し回るような時間の無駄はしません。メインエージェントのコンテキストを軽量に保つため、より高速で安価なモデルへ並列でバックグラウンドタスクを飛ばし、自身の代わりに領域の調査を完了させます。
+1. SisyphusはリファクタリングにLSPを活用します。その方が確実で、安全、かつ的確だからです。
+1. UIに関わる重い作業が必要な場合、SisyphusはフロントエンドのタスクをGemini 3 Proに直接デリゲートします。
+1. もしSisyphusがループに陥ったり壁にぶつかったりしても、無駄に悩み続けることはありません。高IQな戦略的バックアップとしてGPT 5.2を呼び出します。
+1. 複雑なオープンソースフレームワークを扱っていますか？Sisyphusはサブエージェントを生成し、生のソースコードやドキュメントをリアルタイムで消化します。彼は完全なコンテキスト認識を持って動作します。
+1. Sisyphusがコメントに触れるとき、その存在意義を証明するか、さもなくば削除します。あなたのコードベースを常にクリーンに保ちます。
+1. Sisyphusは自身のTODOリストに縛られています。もし始めたことを終わらせられなければ、システムは彼を強制的に「bouldering」モードに戻します。あなたのタスクは、何があろうと完了します。
+1. 正直、ドキュメントなんて読む必要はありません。ただプロンプトを書いてください。「ultrawork」というキーワードを含めるだけで十分です。Sisyphusが構造を分析し、コンテキストを集め、外部のソースコードまで掘り下げ、仕事が100%完了するまでboulderingを続けます。
+1. ぶっちゃけ、「ultrawork」と打つのすら面倒ですよね。それなら「ulw」だけでOKです。ただulwと打ち、コーヒーでも飲んでいてください。仕事は終わっています。
 
 このような機能が不要であれば、前述の通り、特定の機能だけを選んで使うことができます。
 
@@ -205,6 +209,9 @@ Windows から Linux に初めて乗り換えた時のこと、自分の思い�
 ### 人間の方へ
 
 面倒な作業は LLM エージェントに任せましょう。このリンクをコピーして貼り付け、インストールと設定をお願いしてください。
+```
+Install and configure by following the instructions here https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads/master/README.md
+```
 
 ### LLM エージェントの方へ
 
@@ -297,7 +304,7 @@ opencode auth login
 {
   "plugin": [
     "oh-my-opencode",
-    "opencode-antigravity-auth@1.2.7"
+    "opencode-antigravity-auth@1.2.8"
   ]
 }
 ```
@@ -640,7 +647,8 @@ Oh My OpenCode は以下の場所からフックを読み込んで実行しま�
     "commands": false,
     "skills": false,
     "agents": false,
-    "hooks": false
+    "hooks": false,
+    "plugins": false
   }
 }
 ```
@@ -652,8 +660,24 @@ Oh My OpenCode は以下の場所からフックを読み込んで実行しま�
 | `skills`   | `~/.claude/skills/*/SKILL.md`, `./.claude/skills/*/SKILL.md`                          | -                                                     |
 | `agents`   | `~/.claude/agents/*.md`, `./.claude/agents/*.md`                                      | 内蔵エージェント (oracle, librarian 等)               |
 | `hooks`    | `~/.claude/settings.json`, `./.claude/settings.json`, `./.claude/settings.local.json` | -                                                     |
+| `plugins`  | `~/.claude/plugins/` (Claude Code マーケットプレイスプラグイン)                       | -                                                     |
 
 すべてのトグルはデフォルトで `true` (有効) です。完全な Claude Code 互換性を望む場合は `claude_code` オブジェクトを省略してください。
+
+**特定のプラグインだけを無効化** するには `plugins_override` を使用します：
+
+```json
+{
+  "claude_code": {
+    "plugins_override": {
+      "claude-mem@thedotmack": false,
+      "some-other-plugin@marketplace": false
+    }
+  }
+}
+```
+
+プラグインシステム自体は有効にしたまま、特定のプラグインだけをその完全な識別子 (`plugin-name@marketplace-name`) で無効化できます。
 
 ### エージェントのためだけでなく、あなたのために
 
@@ -841,7 +865,8 @@ Oh My OpenCode は以下の場所からフックを読み込んで実行しま�
 
 - **Sisyphus**: プライマリオーケストレーターエージェント (Claude Opus 4.5)
 - **OpenCode-Builder**: OpenCode のデフォルトビルドエージェント（SDK 制限により名前変更、デフォルトで無効）
-- **Planner-Sisyphus**: OpenCode のデフォルトプランエージェント（SDK 制限により名前変更、デフォルトで有効）
+- **Prometheus (Planner)**: OpenCode のデフォルトプランエージェント + work-planner 方法論（デフォルトで有効）
+- **Metis (Plan Consultant)**: 隠された要件と AI 失敗ポイントを特定する事前計画分析エージェント
 
 **設定オプション：**
 
@@ -890,8 +915,11 @@ Oh My OpenCode は以下の場所からフックを読み込んで実行しま�
     "OpenCode-Builder": {
       "model": "anthropic/claude-opus-4"
     },
-    "Planner-Sisyphus": {
+    "Prometheus (Planner)": {
       "model": "openai/gpt-5.2"
+    },
+    "Metis (Plan Consultant)": {
+      "model": "anthropic/claude-sonnet-4-5"
     }
   }
 }
@@ -901,8 +929,42 @@ Oh My OpenCode は以下の場所からフックを読み込んで実行しま�
 | --------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `disabled`                  | `false` | `true` の場合、すべての Sisyphus オーケストレーションを無効化し、元の build/plan をプライマリとして復元します。                                                                       |
 | `default_builder_enabled`   | `false` | `true` の場合、OpenCode-Builder エージェントを有効化します（OpenCode build と同じ、SDK 制限により名前変更）。デフォルトでは無効です。                                                   |
-| `planner_enabled`           | `true`  | `true` の場合、Planner-Sisyphus エージェントを有効化します（OpenCode plan と同じ、SDK 制限により名前変更）。デフォルトで有効です。                                                       |
-| `replace_plan`              | `true`  | `true` の場合、デフォルトのプランエージェントをサブエージェントモードに降格させます。`false` に設定すると、Planner-Sisyphus とデフォルトのプランの両方を利用できます。                                |
+| `planner_enabled`           | `true`  | `true` の場合、Prometheus (Planner) エージェントを有効化します（work-planner 方法論を含む）。デフォルトで有効です。                                                                   |
+| `replace_plan`              | `true`  | `true` の場合、デフォルトのプランエージェントをサブエージェントモードに降格させます。`false` に設定すると、Prometheus (Planner) とデフォルトのプランの両方を利用できます。                             |
+
+### Background Tasks
+
+バックグラウンドエージェントタスクの同時実行数を設定します。並列で実行できるバックグラウンドエージェントの数を制御します。
+
+```json
+{
+  "background_task": {
+    "defaultConcurrency": 5,
+    "providerConcurrency": {
+      "anthropic": 3,
+      "openai": 5,
+      "google": 10
+    },
+    "modelConcurrency": {
+      "anthropic/claude-opus-4-5": 2,
+      "google/gemini-3-flash": 10
+    }
+  }
+}
+```
+
+| オプション            | デフォルト | 説明                                                                                                           |
+| --------------------- | ---------- | -------------------------------------------------------------------------------------------------------------- |
+| `defaultConcurrency`  | -          | すべてのプロバイダー/モデルに対するデフォルトの最大同時バックグラウンドタスク数                                 |
+| `providerConcurrency` | -          | プロバイダーごとの同時実行制限。キーはプロバイダー名（例：`anthropic`、`openai`、`google`）                     |
+| `modelConcurrency`    | -          | モデルごとの同時実行制限。キーは完全なモデル名（例：`anthropic/claude-opus-4-5`）。プロバイダー制限より優先されます。 |
+
+**優先順位**: `modelConcurrency` > `providerConcurrency` > `defaultConcurrency`
+
+**ユースケース**:
+- 高価なモデル（例：Opus）を制限してコストの急増を防ぐ
+- 高速で安価なモデル（例：Gemini Flash）により多くの同時タスクを許可する
+- プロバイダーレベルの上限を設定してプロバイダーのレートリミットを遵守する
 
 ### Hooks
 
