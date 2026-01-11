@@ -29,10 +29,7 @@
 > This is coding on steroids—`oh-my-opencode` in action. Run background agents, call specialized agents like oracle, librarian, and frontend engineer. Use crafted LSP/AST tools, curated MCPs, and a full Claude Code compatibility layer.
 
 
-No stupid token consumption massive subagents here. No bloat tools here.
-
-**Certified, Verified, Tested, Actually Useful Harness in Production, after $24,000 worth of tokens spent.**
-**START WITH YOUR ChatGPT, Claude, Gemini SUBSCRIPTIONS. WE ALL COVER THEM.**
+**Notice: Do not use expensive models for librarian. This is not only unhelpful to you, but also burdens LLM providers. Use models like Claude Haiku, Gemini Flash, GLM 4.7, or MiniMax instead.**
 
 
 <div align="center">
@@ -128,6 +125,7 @@ No stupid token consumption massive subagents here. No bloat tools here.
     - [Agents](#agents)
       - [Permission Options](#permission-options)
     - [Built-in Skills](#built-in-skills)
+    - [Git Master](#git-master)
     - [Sisyphus Agent](#sisyphus-agent)
     - [Background Tasks](#background-tasks)
     - [Categories](#categories)
@@ -135,6 +133,7 @@ No stupid token consumption massive subagents here. No bloat tools here.
     - [MCPs](#mcps)
     - [LSP](#lsp)
     - [Experimental](#experimental)
+    - [Environment Variables](#environment-variables)
   - [Author's Note](#authors-note)
   - [Warnings](#warnings)
   - [Loved by professionals at](#loved-by-professionals-at)
@@ -361,9 +360,9 @@ The `opencode-antigravity-auth` plugin uses different model names than the built
 {
   "google_auth": false,
   "agents": {
-    "frontend-ui-ux-engineer": { "model": "google/gemini-3-pro-high" },
-    "document-writer": { "model": "google/gemini-3-flash" },
-    "multimodal-looker": { "model": "google/gemini-3-flash" }
+    "frontend-ui-ux-engineer": { "model": "google/antigravity-gemini-3-pro-high" },
+    "document-writer": { "model": "google/antigravity-gemini-3-flash" },
+    "multimodal-looker": { "model": "google/antigravity-gemini-3-flash" }
   }
 }
 ```
@@ -499,9 +498,9 @@ To remove oh-my-opencode:
 
 - **Sisyphus** (`anthropic/claude-opus-4-5`): **The default agent.** A powerful AI orchestrator for OpenCode. Plans, delegates, and executes complex tasks using specialized subagents with aggressive parallel execution. Emphasizes background task delegation and todo-driven workflow. Uses Claude Opus 4.5 with extended thinking (32k budget) for maximum reasoning capability.
 - **oracle** (`openai/gpt-5.2`): Architecture, code review, strategy. Uses GPT-5.2 for its stellar logical reasoning and deep analysis. Inspired by AmpCode.
-- **librarian** (`anthropic/claude-sonnet-4-5` or `google/gemini-3-flash`): Multi-repo analysis, doc lookup, implementation examples. Uses Gemini 3 Flash when Antigravity auth is configured, otherwise Claude Sonnet 4.5 for deep codebase understanding and GitHub research with evidence-based answers. Inspired by AmpCode.
+- **librarian** (`opencode/glm-4.7-free`): Multi-repo analysis, doc lookup, implementation examples. Uses GLM-4.7 Free for deep codebase understanding and GitHub research with evidence-based answers. Inspired by AmpCode.
 - **explore** (`opencode/grok-code`, `google/gemini-3-flash`, or `anthropic/claude-haiku-4-5`): Fast codebase exploration and pattern matching. Uses Gemini 3 Flash when Antigravity auth is configured, Haiku when Claude max20 is available, otherwise Grok. Inspired by Claude Code.
-- **frontend-ui-ux-engineer** (`google/gemini-3-pro-high`): A designer turned developer. Builds gorgeous UIs. Gemini excels at creative, beautiful UI code.
+- **frontend-ui-ux-engineer** (`google/gemini-3-pro-preview`): A designer turned developer. Builds gorgeous UIs. Gemini excels at creative, beautiful UI code.
 - **document-writer** (`google/gemini-3-flash`): Technical writing expert. Gemini is a wordsmith—writes prose that flows.
 - **multimodal-looker** (`google/gemini-3-flash`): Visual content specialist. Analyzes PDFs, images, diagrams to extract information.
 
@@ -830,9 +829,9 @@ When using `opencode-antigravity-auth`, disable the built-in auth and override a
 {
   "google_auth": false,
   "agents": {
-    "frontend-ui-ux-engineer": { "model": "google/gemini-3-pro-high" },
-    "document-writer": { "model": "google/gemini-3-flash" },
-    "multimodal-looker": { "model": "google/gemini-3-flash" }
+    "frontend-ui-ux-engineer": { "model": "google/antigravity-gemini-3-pro-high" },
+    "document-writer": { "model": "google/antigravity-gemini-3-flash" },
+    "multimodal-looker": { "model": "google/antigravity-gemini-3-flash" }
   }
 }
 ```
@@ -945,10 +944,10 @@ Configure git-master skill behavior:
 }
 ```
 
-| Option | Default | Description |
-| ------ | ------- | ----------- |
-| `commit_footer` | `true` | Adds "Ultraworked with Sisyphus" footer to commit messages. |
-| `include_co_authored_by` | `true` | Adds `Co-authored-by: Sisyphus <clio-agent@sisyphuslabs.ai>` trailer to commits. |
+| Option                   | Default | Description                                                                      |
+| ------------------------ | ------- | -------------------------------------------------------------------------------- |
+| `commit_footer`          | `true`  | Adds "Ultraworked with Sisyphus" footer to commit messages.                      |
+| `include_co_authored_by` | `true`  | Adds `Co-authored-by: Sisyphus <clio-agent@sisyphuslabs.ai>` trailer to commits. |
 
 ### Sisyphus Agent
 
@@ -1016,12 +1015,12 @@ You can also customize Sisyphus agents like other agents:
 }
 ```
 
-| Option                      | Default | Description                                                                                                                                         |
-| --------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `disabled`                  | `false` | When `true`, disables all Sisyphus orchestration and restores original build/plan as primary.                                                       |
-| `default_builder_enabled`   | `false` | When `true`, enables OpenCode-Builder agent (same as OpenCode build, renamed due to SDK limitations). Disabled by default.                         |
-| `planner_enabled`           | `true`  | When `true`, enables Prometheus (Planner) agent with work-planner methodology. Enabled by default.                                                 |
-| `replace_plan`              | `true`  | When `true`, demotes default plan agent to subagent mode. Set to `false` to keep both Prometheus (Planner) and default plan available.             |
+| Option                    | Default | Description                                                                                                                            |
+| ------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `disabled`                | `false` | When `true`, disables all Sisyphus orchestration and restores original build/plan as primary.                                          |
+| `default_builder_enabled` | `false` | When `true`, enables OpenCode-Builder agent (same as OpenCode build, renamed due to SDK limitations). Disabled by default.             |
+| `planner_enabled`         | `true`  | When `true`, enables Prometheus (Planner) agent with work-planner methodology. Enabled by default.                                     |
+| `replace_plan`            | `true`  | When `true`, demotes default plan agent to subagent mode. Set to `false` to keep both Prometheus (Planner) and default plan available. |
 
 ### Background Tasks
 
@@ -1063,10 +1062,10 @@ Categories enable domain-specific task delegation via the `sisyphus_task` tool. 
 
 **Default Categories:**
 
-| Category | Model | Description |
-|----------|-------|-------------|
-| `visual` | `google/gemini-3-pro-preview` | Frontend, UI/UX, design-focused tasks. High creativity (temp 0.7). |
-| `business-logic` | `openai/gpt-5.2` | Backend logic, architecture, strategic reasoning. Low creativity (temp 0.1). |
+| Category         | Model                         | Description                                                                  |
+| ---------------- | ----------------------------- | ---------------------------------------------------------------------------- |
+| `visual`         | `google/gemini-3-pro-preview` | Frontend, UI/UX, design-focused tasks. High creativity (temp 0.7).           |
+| `business-logic` | `openai/gpt-5.2`              | Backend logic, architecture, strategic reasoning. Low creativity (temp 0.1). |
 
 **Usage:**
 
@@ -1092,7 +1091,7 @@ Add custom categories in `oh-my-opencode.json`:
       "prompt_append": "Focus on data analysis, ML pipelines, and statistical methods."
     },
     "visual": {
-      "model": "google/gemini-3-pro-high",
+      "model": "google/gemini-3-pro-preview",
       "prompt_append": "Use shadcn/ui components and Tailwind CSS."
     }
   }
@@ -1180,6 +1179,12 @@ Opt-in experimental features that may change or be removed in future versions. U
 | `dcp_for_compaction`              | `false` | Enable DCP (Dynamic Context Pruning) for compaction - runs first when token limit exceeded. Prunes duplicate tool calls and old tool outputs before running compaction.                       |
 
 **Warning**: These features are experimental and may cause unexpected behavior. Enable only if you understand the implications.
+
+### Environment Variables
+
+| Variable              | Description                                                                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENCODE_CONFIG_DIR` | Override the OpenCode configuration directory. Useful for profile isolation with tools like [OCX](https://github.com/kdcokenny/ocx) ghost mode. |
 
 
 ## Author's Note

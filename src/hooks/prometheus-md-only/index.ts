@@ -1,16 +1,48 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import { existsSync, readdirSync } from "node:fs"
-import { join } from "node:path"
+import { join, resolve, relative, isAbsolute } from "node:path"
 import { HOOK_NAME, PROMETHEUS_AGENTS, ALLOWED_EXTENSIONS, ALLOWED_PATH_PREFIX, BLOCKED_TOOLS, PLANNING_CONSULT_WARNING } from "./constants"
 import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../../features/hook-message-injector"
 import { log } from "../../shared/logger"
 
 export * from "./constants"
 
-function isAllowedFile(filePath: string): boolean {
-  const hasAllowedExtension = ALLOWED_EXTENSIONS.some(ext => filePath.endsWith(ext))
-  const isInAllowedPath = filePath.includes(ALLOWED_PATH_PREFIX)
-  return hasAllowedExtension && isInAllowedPath
+/**
+ * Cross-platform path validator for Prometheus file writes.
+ * Uses path.resolve/relative instead of string matching to handle:
+ * - Windows backslashes (e.g., .sisyphus\\plans\\x.md)
+ * - Mixed separators (e.g., .sisyphus\\plans/x.md)
+ * - Case-insensitive directory/extension matching
+ * - Workspace confinement (blocks paths outside root or via traversal)
+ * - Nested project paths (e.g., parent/.sisyphus/... when ctx.directory is parent)
+ */
+function isAllowedFile(filePath: string, workspaceRoot: string): boolean {
+  // 1. Resolve to absolute path
+  const resolved = resolve(workspaceRoot, filePath)
+
+  // 2. Get relative path from workspace root
+  const rel = relative(workspaceRoot, resolved)
+
+  // 3. Reject if escapes root (starts with ".." or is absolute)
+  if (rel.startsWith("..") || isAbsolute(rel)) {
+    return false
+  }
+
+  // 4. Check if .sisyphus/ or .sisyphus\ exists anywhere in the path (case-insensitive)
+  // This handles both direct paths (.sisyphus/x.md) and nested paths (project/.sisyphus/x.md)
+  if (!/\.sisyphus[/\\]/i.test(rel)) {
+    return false
+  }
+
+  // 5. Check extension matches one of ALLOWED_EXTENSIONS (case-insensitive)
+  const hasAllowedExtension = ALLOWED_EXTENSIONS.some(
+    ext => resolved.toLowerCase().endsWith(ext.toLowerCase())
+  )
+  if (!hasAllowedExtension) {
+    return false
+  }
+
+  return true
 }
 
 function getMessageDir(sessionID: string): string | null {
@@ -35,7 +67,7 @@ function getAgentFromSession(sessionID: string): string | undefined {
   return findNearestMessageWithFields(messageDir)?.agent
 }
 
-export function createPrometheusMdOnlyHook(_ctx: PluginInput) {
+export function createPrometheusMdOnlyHook(ctx: PluginInput) {
   return {
     "tool.execute.before": async (
       input: { tool: string; sessionID: string; callID: string },
@@ -72,7 +104,7 @@ export function createPrometheusMdOnlyHook(_ctx: PluginInput) {
         return
       }
 
-      if (!isAllowedFile(filePath)) {
+      if (!isAllowedFile(filePath, ctx.directory)) {
         log(`[${HOOK_NAME}] Blocked: Prometheus can only write to .sisyphus/*.md`, {
           sessionID: input.sessionID,
           tool: toolName,
