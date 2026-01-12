@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import type { BackgroundManager } from "../../features/background-agent"
 import type { SisyphusTaskArgs } from "./types"
-import type { CategoryConfig, CategoriesConfig } from "../../config/schema"
+import type { CategoryConfig, CategoriesConfig, GitMasterConfig } from "../../config/schema"
 import { SISYPHUS_TASK_DESCRIPTION, DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS } from "./constants"
 import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../../features/hook-message-injector"
 import { resolveMultipleSkills } from "../../features/opencode-skill-loader/skill-content"
@@ -89,6 +89,7 @@ export interface SisyphusTaskToolOptions {
   manager: BackgroundManager
   client: OpencodeClient
   userCategories?: CategoriesConfig
+  gitMasterConfig?: GitMasterConfig
 }
 
 export interface BuildSystemContentInput {
@@ -111,7 +112,7 @@ export function buildSystemContent(input: BuildSystemContentInput): string | und
 }
 
 export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefinition {
-  const { manager, client, userCategories } = options
+  const { manager, client, userCategories, gitMasterConfig } = options
 
   return tool({
     description: SISYPHUS_TASK_DESCRIPTION,
@@ -136,7 +137,7 @@ export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefini
 
       let skillContent: string | undefined
       if (args.skills.length > 0) {
-        const { resolved, notFound } = resolveMultipleSkills(args.skills)
+        const { resolved, notFound } = resolveMultipleSkills(args.skills, { gitMasterConfig })
         if (notFound.length > 0) {
           const available = createBuiltinSkills().map(s => s.name).join(", ")
           return `❌ Skills not found: ${notFound.join(", ")}. Available: ${available}`
@@ -418,32 +419,25 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
           metadata: { sessionId: sessionID, category: args.category, sync: true },
         })
 
-        // Use fire-and-forget prompt() - awaiting causes JSON parse errors with thinking models
-        // Note: Don't pass model in body - use agent's configured model instead
-        let promptError: Error | undefined
-        client.session.prompt({
-          path: { id: sessionID },
-          body: {
-            agent: agentToUse,
-            system: systemContent,
-            tools: {
-              task: false,
-              sisyphus_task: false,
+        try {
+          await client.session.prompt({
+            path: { id: sessionID },
+            body: {
+              agent: agentToUse,
+              system: systemContent,
+              tools: {
+                task: false,
+                sisyphus_task: false,
+              },
+              parts: [{ type: "text", text: args.prompt }],
+              ...(categoryModel ? { model: categoryModel } : {}),
             },
-            parts: [{ type: "text", text: args.prompt }],
-          },
-        }).catch((error) => {
-          promptError = error instanceof Error ? error : new Error(String(error))
-        })
-
-        // Small delay to let the prompt start
-        await new Promise(resolve => setTimeout(resolve, 100))
-
-        if (promptError) {
+          })
+        } catch (promptError) {
           if (toastManager && taskId !== undefined) {
             toastManager.removeTask(taskId)
           }
-          const errorMessage = promptError.message
+          const errorMessage = promptError instanceof Error ? promptError.message : String(promptError)
           if (errorMessage.includes("agent.name") || errorMessage.includes("undefined")) {
             return `❌ Agent "${agentToUse}" not found. Make sure the agent is registered in your opencode.json or provided by a plugin.\n\nSession ID: ${sessionID}`
           }
@@ -462,20 +456,6 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
 
         while (Date.now() - pollStart < MAX_POLL_TIME_MS) {
           await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
-
-          // Check for async errors that may have occurred after the initial 100ms delay
-          // TypeScript doesn't understand async mutation, so we cast to check
-          const asyncError = promptError as Error | undefined
-          if (asyncError) {
-            if (toastManager && taskId !== undefined) {
-              toastManager.removeTask(taskId)
-            }
-            const errorMessage = asyncError.message
-            if (errorMessage.includes("agent.name") || errorMessage.includes("undefined")) {
-              return `❌ Agent "${agentToUse}" not found. Make sure the agent is registered in your opencode.json or provided by a plugin.\n\nSession ID: ${sessionID}`
-            }
-            return `❌ Failed to send prompt: ${errorMessage}\n\nSession ID: ${sessionID}`
-          }
 
           const statusResult = await client.session.status()
           const allStatuses = (statusResult.data ?? {}) as Record<string, { type: string }>
