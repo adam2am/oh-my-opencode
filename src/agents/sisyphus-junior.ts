@@ -4,7 +4,6 @@ import type { AgentOverrideConfig, CategoryConfig } from "../config/schema"
 import {
   createAgentToolRestrictions,
   migrateAgentConfig,
-  supportsNewPermissionSystem,
 } from "../shared/permission-compat"
 
 const SISYPHUS_JUNIOR_PROMPT = `<Role>
@@ -98,24 +97,14 @@ export function createSisyphusJuniorAgentWithOverrides(
 
   const baseRestrictions = createAgentToolRestrictions(BLOCKED_TOOLS)
 
-  let toolsConfig: Record<string, unknown> = {}
-  if (supportsNewPermissionSystem()) {
-    const userPermission = (override?.permission ?? {}) as Record<string, string>
-    const basePermission = (baseRestrictions as { permission: Record<string, string> }).permission
-    const merged: Record<string, string> = { ...userPermission }
-    for (const tool of BLOCKED_TOOLS) {
-      merged[tool] = "deny"
-    }
-    toolsConfig = { permission: { ...merged, ...basePermission } }
-  } else {
-    const userTools = override?.tools ?? {}
-    const baseTools = (baseRestrictions as { tools: Record<string, boolean> }).tools
-    const merged: Record<string, boolean> = { ...userTools }
-    for (const tool of BLOCKED_TOOLS) {
-      merged[tool] = false
-    }
-    toolsConfig = { tools: { ...merged, ...baseTools } }
+  // Always use tools format for subagents - OpenCode's task.ts only reads agent.tools
+  const userTools = override?.tools ?? {}
+  const baseTools = baseRestrictions.tools
+  const merged: Record<string, boolean> = { ...userTools }
+  for (const tool of BLOCKED_TOOLS) {
+    merged[tool] = false
   }
+  const toolsConfig = { tools: { ...merged, ...baseTools } }
 
   const base: AgentConfig = {
     description: override?.description ??
