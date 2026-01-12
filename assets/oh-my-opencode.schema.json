@@ -23,7 +23,7 @@
           "Sisyphus",
           "oracle",
           "librarian",
-          "explore",
+          "explorer",
           "frontend-ui-ux-engineer",
           "document-writer",
           "multimodal-looker",
@@ -1203,7 +1203,7 @@
             }
           }
         },
-        "explore": {
+        "explorer": {
           "type": "object",
           "properties": {
             "model": {

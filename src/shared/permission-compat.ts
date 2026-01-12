@@ -14,15 +14,9 @@ export type VersionAwareRestrictions = LegacyToolsFormat | NewPermissionFormat
 
 export function createAgentToolRestrictions(
   denyTools: string[]
-): VersionAwareRestrictions {
-  if (supportsNewPermissionSystem()) {
-    return {
-      permission: Object.fromEntries(
-        denyTools.map((tool) => [tool, "deny" as const])
-      ),
-    }
-  }
-
+): LegacyToolsFormat {
+  // Always use tools format for subagents - OpenCode's task.ts only reads agent.tools
+  // The permission system is for main agents, not subagents spawned via Task tool
   return {
     tools: Object.fromEntries(denyTools.map((tool) => [tool, false])),
   }

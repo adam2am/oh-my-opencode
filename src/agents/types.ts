@@ -60,7 +60,7 @@ export type BuiltinAgentName =
   | "Sisyphus"
   | "oracle"
   | "librarian"
-  | "explore"
+  | "explorer"
   | "frontend-ui-ux-engineer"
   | "document-writer"
   | "multimodal-looker"

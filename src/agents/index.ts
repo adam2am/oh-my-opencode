@@ -14,7 +14,7 @@ export const builtinAgents: Record<string, AgentConfig> = {
   Sisyphus: sisyphusAgent,
   oracle: oracleAgent,
   librarian: librarianAgent,
-  explore: exploreAgent,
+  explorer: exploreAgent,
   "frontend-ui-ux-engineer": frontendUiUxEngineerAgent,
   "document-writer": documentWriterAgent,
   "multimodal-looker": multimodalLookerAgent,

@@ -21,7 +21,7 @@ const agentSources: Record<BuiltinAgentName, AgentSource> = {
   Sisyphus: createSisyphusAgent,
   oracle: createOracleAgent,
   librarian: createLibrarianAgent,
-  explore: createExploreAgent,
+  explorer: createExploreAgent,
   "frontend-ui-ux-engineer": createFrontendUiUxEngineerAgent,
   "document-writer": createDocumentWriterAgent,
   "multimodal-looker": createMultimodalLookerAgent,
@@ -37,7 +37,7 @@ const agentSources: Record<BuiltinAgentName, AgentSource> = {
 const agentMetadata: Partial<Record<BuiltinAgentName, AgentPromptMetadata>> = {
   oracle: ORACLE_PROMPT_METADATA,
   librarian: LIBRARIAN_PROMPT_METADATA,
-  explore: EXPLORE_PROMPT_METADATA,
+  explorer: EXPLORE_PROMPT_METADATA,
   "frontend-ui-ux-engineer": FRONTEND_PROMPT_METADATA,
   "document-writer": DOCUMENT_WRITER_PROMPT_METADATA,
   "multimodal-looker": MULTIMODAL_LOOKER_PROMPT_METADATA,

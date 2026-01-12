@@ -146,7 +146,7 @@ export function buildToolSelectionTable(
 }
 
 export function buildExploreSection(agents: AvailableAgent[]): string {
-  const exploreAgent = agents.find((a) => a.name === "explore")
+  const exploreAgent = agents.find((a) => a.name === "explorer")
   if (!exploreAgent) return ""
 
   const useWhen = exploreAgent.metadata.useWhen || []
@@ -324,7 +324,7 @@ export function buildUltraworkAgentSection(agents: AvailableAgent[]): string {
   const lines: string[] = []
   for (const agent of sortedAgents) {
     const shortDesc = agent.description.split(".")[0] || agent.description
-    const suffix = (agent.name === "explore" || agent.name === "librarian") ? " (multiple)" : ""
+    const suffix = (agent.name === "explorer" || agent.name === "librarian") ? " (multiple)" : ""
     lines.push(`- **${agent.name}${suffix}**: ${shortDesc}`)
   }
 

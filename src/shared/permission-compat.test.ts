@@ -17,16 +17,16 @@ describe("permission-compat", () => {
   })
 
   describe("createAgentToolRestrictions", () => {
-    test("returns permission format for v1.1.1+", () => {
+    test("always returns tools format for subagent compatibility", () => {
       // #given version is 1.1.1
       setVersionCache("1.1.1")
 
       // #when creating restrictions
       const result = createAgentToolRestrictions(["write", "edit"])
 
-      // #then returns permission format
+      // #then returns tools format (subagents need tools, not permission)
       expect(result).toEqual({
-        permission: { write: "deny", edit: "deny" },
+        tools: { write: false, edit: false },
       })
     })
 
@@ -43,16 +43,16 @@ describe("permission-compat", () => {
       })
     })
 
-    test("assumes new format when version unknown", () => {
+    test("returns tools format regardless of version", () => {
       // #given version is null
       setVersionCache(null)
 
       // #when creating restrictions
       const result = createAgentToolRestrictions(["write"])
 
-      // #then returns permission format (assumes new version)
+      // #then returns tools format
       expect(result).toEqual({
-        permission: { write: "deny" },
+        tools: { write: false },
       })
     })
   })

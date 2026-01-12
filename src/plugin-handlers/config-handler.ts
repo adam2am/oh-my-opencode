@@ -236,16 +236,21 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
 
     const agentResult = config.agent as AgentConfig;
 
+    log(`[config-handler] Processing agents...`);
+    log(`[config-handler] explorer.tools BEFORE: ${JSON.stringify(agentResult.explorer?.tools)}`);
+    log(`[config-handler] librarian.tools BEFORE: ${JSON.stringify(agentResult.librarian?.tools)}`);
+
     config.tools = {
       ...(config.tools as Record<string, unknown>),
       "grep_app_*": false,
     };
 
-    if (agentResult.explore) {
-      agentResult.explore.tools = {
-        ...agentResult.explore.tools,
+    if (agentResult.explorer) {
+      agentResult.explorer.tools = {
+        ...(agentResult.explorer.tools ?? {}),
         call_omo_agent: false,
       };
+      log(`[config-handler] explorer.tools AFTER: ${JSON.stringify(agentResult.explorer.tools)}`);
     }
     if (agentResult.librarian) {
       agentResult.librarian.tools = {
@@ -253,6 +258,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
         call_omo_agent: false,
         "grep_app_*": true,
       };
+      log(`[config-handler] librarian.tools AFTER: ${JSON.stringify(agentResult.librarian.tools)}`);
     }
     if (agentResult["multimodal-looker"]) {
       agentResult["multimodal-looker"].tools = {

@@ -132,9 +132,14 @@ async function executeSync(
   })
 
   log(`[call_omo_agent] Sending prompt to session ${sessionID}`)
-  log(`[call_omo_agent] Prompt text:`, args.prompt.substring(0, 100))
+  log(`[call_omo_agent] Agent: ${args.subagent_type}`)
+  log(`[call_omo_agent] Tools being passed: ${JSON.stringify({ task: false, call_omo_agent: false, sisyphus_task: false })}`)
 
   try {
+    // Only deny recursion tools - let agent's registered config handle everything else
+    // OpenCode merges: agent.tools -> ToolRegistry.enabled -> input.tools (last wins)
+    // By only denying recursion tools, the agent's full tool access is preserved
+    log(`[call_omo_agent] Calling session.prompt with agent="${args.subagent_type}"`)
     await ctx.client.session.prompt({
       path: { id: sessionID },
       body: {
