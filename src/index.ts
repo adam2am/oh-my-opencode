@@ -472,7 +472,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       if (input.tool === "task") {
         const args = output.args as Record<string, unknown>;
         const subagentType = args.subagent_type as string;
-        const isExploreOrLibrarian = ["explore", "librarian"].includes(
+        const isExploreOrLibrarian = ["explorer", "librarian"].includes(
           subagentType
         );
 

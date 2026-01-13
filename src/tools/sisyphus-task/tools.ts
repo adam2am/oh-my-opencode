@@ -120,7 +120,7 @@ export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefini
       description: tool.schema.string().describe("Short task description"),
       prompt: tool.schema.string().describe("Full detailed prompt for the agent"),
       category: tool.schema.string().optional().describe(`Category name (e.g., ${CATEGORY_EXAMPLES}). Mutually exclusive with subagent_type.`),
-      subagent_type: tool.schema.string().optional().describe("Agent name directly (e.g., 'oracle', 'explore'). Mutually exclusive with category."),
+      subagent_type: tool.schema.string().optional().describe("Agent name directly (e.g., 'oracle', 'explorer'). Mutually exclusive with category."),
       run_in_background: tool.schema.boolean().describe("Run in background. MUST be explicitly set. Use false for task delegation, true only for parallel exploration."),
       resume: tool.schema.string().optional().describe("Session ID to resume - continues previous agent session with full context"),
       skills: tool.schema.array(tool.schema.string()).describe("Array of skill names to prepend to the prompt. Use [] if no skills needed."),

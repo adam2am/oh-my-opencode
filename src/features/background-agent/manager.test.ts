@@ -341,10 +341,10 @@ describe("BackgroundManager.notifyParentSession - release ordering", () => {
     const { ConcurrencyManager } = await import("./concurrency")
     const concurrencyManager = new ConcurrencyManager({ defaultConcurrency: 1 })
 
-    await concurrencyManager.acquire("explore")
+    await concurrencyManager.acquire("explorer")
 
     let task2Resolved = false
-    const task2Promise = concurrencyManager.acquire("explore").then(() => {
+    const task2Promise = concurrencyManager.acquire("explorer").then(() => {
       task2Resolved = true
     })
 
@@ -354,7 +354,7 @@ describe("BackgroundManager.notifyParentSession - release ordering", () => {
     // #when - simulate notifyParentSession: release BEFORE prompt (fixed behavior)
     let promptStarted = false
     const simulateNotifyParentSession = async () => {
-      concurrencyManager.release("explore")
+      concurrencyManager.release("explorer")
 
       promptStarted = true
       await new Promise(() => {})
@@ -376,10 +376,10 @@ describe("BackgroundManager.notifyParentSession - release ordering", () => {
     const { ConcurrencyManager } = await import("./concurrency")
     const concurrencyManager = new ConcurrencyManager({ defaultConcurrency: 1 })
 
-    await concurrencyManager.acquire("explore")
+    await concurrencyManager.acquire("explorer")
 
     let task2Resolved = false
-    concurrencyManager.acquire("explore").then(() => {
+    concurrencyManager.acquire("explorer").then(() => {
       task2Resolved = true
     })
 
@@ -391,7 +391,7 @@ describe("BackgroundManager.notifyParentSession - release ordering", () => {
       try {
         await new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 50))
       } finally {
-        concurrencyManager.release("explore")
+        concurrencyManager.release("explorer")
       }
     }
 
@@ -571,7 +571,7 @@ describe("BackgroundManager.resume", () => {
       sessionID: "session-a",
       parentSessionID: "old-parent",
       description: "original description",
-      agent: "explore",
+      agent: "explorer",
     })
     manager.addTask(existingTask)
 
@@ -588,7 +588,7 @@ describe("BackgroundManager.resume", () => {
     expect(result.id).toBe("task-a")
     expect(result.sessionID).toBe("session-a")
     expect(result.description).toBe("original description")
-    expect(result.agent).toBe("explore")
+    expect(result.agent).toBe("explorer")
     expect(result.parentModel).toEqual({ providerID: "anthropic", modelID: "claude-opus" })
   })
 
@@ -650,7 +650,7 @@ describe("LaunchInput.skillContent", () => {
     const input: import("./types").LaunchInput = {
       description: "test",
       prompt: "test prompt",
-      agent: "explore",
+      agent: "explorer",
       parentSessionID: "parent-session",
       parentMessageID: "parent-msg",
     }
@@ -664,7 +664,7 @@ describe("LaunchInput.skillContent", () => {
     const input: import("./types").LaunchInput = {
       description: "test",
       prompt: "test prompt",
-      agent: "explore",
+      agent: "explorer",
       parentSessionID: "parent-session",
       parentMessageID: "parent-msg",
       skillContent: "You are a playwright expert",
@@ -685,7 +685,7 @@ describe("BackgroundManager.notifyParentSession - agent context preservation", (
       parentMessageID: "msg-parent",
       description: "task without agent context",
       prompt: "test",
-      agent: "explore",
+      agent: "explorer",
       status: "completed",
       startedAt: new Date(),
       completedAt: new Date(),
@@ -710,7 +710,7 @@ describe("BackgroundManager.notifyParentSession - agent context preservation", (
       parentMessageID: "msg-parent",
       description: "task with agent context",
       prompt: "test",
-      agent: "explore",
+      agent: "explorer",
       status: "completed",
       startedAt: new Date(),
       completedAt: new Date(),
@@ -734,7 +734,7 @@ describe("BackgroundManager.notifyParentSession - agent context preservation", (
       parentMessageID: "msg-parent",
       description: "task without model context",
       prompt: "test",
-      agent: "explore",
+      agent: "explorer",
       status: "completed",
       startedAt: new Date(),
       completedAt: new Date(),

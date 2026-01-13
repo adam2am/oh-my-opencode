@@ -499,7 +499,7 @@ To remove oh-my-opencode:
 - **Sisyphus** (`anthropic/claude-opus-4-5`): **The default agent.** A powerful AI orchestrator for OpenCode. Plans, delegates, and executes complex tasks using specialized subagents with aggressive parallel execution. Emphasizes background task delegation and todo-driven workflow. Uses Claude Opus 4.5 with extended thinking (32k budget) for maximum reasoning capability.
 - **oracle** (`openai/gpt-5.2`): Architecture, code review, strategy. Uses GPT-5.2 for its stellar logical reasoning and deep analysis. Inspired by AmpCode.
 - **librarian** (`opencode/glm-4.7-free`): Multi-repo analysis, doc lookup, implementation examples. Uses GLM-4.7 Free for deep codebase understanding and GitHub research with evidence-based answers. Inspired by AmpCode.
-- **explore** (`opencode/grok-code`, `google/gemini-3-flash`, or `anthropic/claude-haiku-4-5`): Fast codebase exploration and pattern matching. Uses Gemini 3 Flash when Antigravity auth is configured, Haiku when Claude max20 is available, otherwise Grok. Inspired by Claude Code.
+- **explorer** (`opencode/grok-code`, `google/gemini-3-flash`, or `anthropic/claude-haiku-4-5`): Fast codebase exploration and pattern matching. Uses Gemini 3 Flash when Antigravity auth is configured, Haiku when Claude max20 is available, otherwise Grok. Inspired by Claude Code.
 - **frontend-ui-ux-engineer** (`google/gemini-3-pro-preview`): A designer turned developer. Builds gorgeous UIs. Gemini excels at creative, beautiful UI code.
 - **document-writer** (`google/gemini-3-flash`): Technical writing expert. Gemini is a wordsmith—writes prose that flows.
 - **multimodal-looker** (`google/gemini-3-flash`): Visual content specialist. Analyzes PDFs, images, diagrams to extract information.
@@ -509,7 +509,7 @@ The main agent invokes these automatically, but you can call them explicitly:
 ```
 Ask @oracle to review this design and propose an architecture
 Ask @librarian how this is implemented—why does the behavior keep changing?
-Ask @explore for the policy on this feature
+Ask @explorer for the policy on this feature
 ```
 
 Customize agent models, prompts, and permissions in `oh-my-opencode.json`. See [Configuration](#configuration).
@@ -555,7 +555,7 @@ Hand your best tools to your best colleagues. Now they can properly refactor, na
 - **lsp_code_action_resolve**: Apply code action
 - **ast_grep_search**: AST-aware code pattern search (25 languages)
 - **ast_grep_replace**: AST-aware code replacement
-- **call_omo_agent**: Spawn specialized explore/librarian agents. Supports `run_in_background` parameter for async execution.
+- **call_omo_agent**: Spawn specialized explorer/librarian agents. Supports `run_in_background` parameter for async execution.
 - **sisyphus_task**: Category-based task delegation with specialized agents. Supports pre-configured categories (visual, business-logic) or direct agent targeting. Use `background_output` to retrieve results and `background_cancel` to cancel tasks. See [Categories](#categories).
 
 #### Session Management
@@ -746,7 +746,7 @@ When agents thrive, you thrive. But I want to help you directly too.
   - Configure in `oh-my-opencode.json`: `{ "ralph_loop": { "enabled": true, "default_max_iterations": 100 } }`
 - **Keyword Detector**: Automatically detects keywords in your prompts and activates specialized modes:
   - `ultrawork` / `ulw`: Maximum performance mode with parallel agent orchestration
-  - `search` / `find` / `찾아` / `検索`: Maximized search effort with parallel explore and librarian agents
+  - `search` / `find` / `찾아` / `検索`: Maximized search effort with parallel explorer and librarian agents
   - `analyze` / `investigate` / `분석` / `調査`: Deep analysis mode with multi-phase expert consultation
 - **Todo Continuation Enforcer**: Makes agents finish all TODOs before stopping. Kills the chronic LLM habit of quitting halfway.
 - **Comment Checker**: LLMs love comments. Too many comments. This reminds them to cut the noise. Smartly ignores valid patterns (BDD, directives, docstrings) and demands justification for the rest. Clean code wins.
@@ -812,7 +812,7 @@ When both `oh-my-opencode.jsonc` and `oh-my-opencode.json` files exist, `.jsonc`
     "oracle": {
       "model": "openai/gpt-5.2"  // GPT for strategic reasoning
     },
-    "explore": {
+    "explorer": {
       "model": "opencode/grok-code"  // Free & fast for exploration
     },
   },
@@ -851,7 +851,7 @@ Override built-in agent settings:
 ```json
 {
   "agents": {
-    "explore": {
+    "explorer": {
       "model": "anthropic/claude-haiku-4-5",
       "temperature": 0.5
     },
@@ -885,7 +885,7 @@ Fine-grained control over what agents can do:
 ```json
 {
   "agents": {
-    "explore": {
+    "explorer": {
       "permission": {
         "edit": "deny",
         "bash": "ask",
@@ -912,7 +912,7 @@ Or disable via `disabled_agents` in `~/.config/opencode/oh-my-opencode.json` or 
 }
 ```
 
-Available agents: `oracle`, `librarian`, `explore`, `frontend-ui-ux-engineer`, `document-writer`, `multimodal-looker`
+Available agents: `oracle`, `librarian`, `explorer`, `frontend-ui-ux-engineer`, `document-writer`, `multimodal-looker`
 
 ### Built-in Skills
 

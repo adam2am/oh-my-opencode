@@ -282,11 +282,11 @@ export function generateOmoConfig(installConfig: InstallConfig): Record<string, 
   // Gemini models use `antigravity-` prefix for explicit Antigravity quota routing
   // @see ANTIGRAVITY_PROVIDER_CONFIG comments for rationale
   if (installConfig.hasGemini) {
-    agents["explore"] = { model: "google/antigravity-gemini-3-flash" }
+    agents["explorer"] = { model: "google/antigravity-gemini-3-flash" }
   } else if (installConfig.hasClaude && installConfig.isMax20) {
-    agents["explore"] = { model: "anthropic/claude-haiku-4-5" }
+    agents["explorer"] = { model: "anthropic/claude-haiku-4-5" }
   } else {
-    agents["explore"] = { model: "opencode/glm-4.7-free" }
+    agents["explorer"] = { model: "opencode/glm-4.7-free" }
   }
 
   if (!installConfig.hasChatGPT) {

@@ -28,7 +28,7 @@ export function createCallOmoAgent(
       prompt: tool.schema.string().describe("The task for the agent to perform"),
       subagent_type: tool.schema
         .enum(ALLOWED_AGENTS)
-        .describe("The type of specialized agent to use for this task (explore or librarian only)"),
+        .describe("The type of specialized agent to use for this task (explorer or librarian only)"),
       run_in_background: tool.schema
         .boolean()
         .describe("REQUIRED. true: run asynchronously (use background_output to get results), false: run synchronously and wait for completion"),

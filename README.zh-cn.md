@@ -811,7 +811,7 @@ Oh My OpenCode 从以下位置读取和执行钩子：
     "oracle": {
       "model": "openai/gpt-5.2"  // 使用 GPT 进行战略推理
     },
-    "explore": {
+    "explorer": {
       "model": "opencode/grok-code"  // 免费且快速，用于探索
     },
   },
@@ -850,7 +850,7 @@ Oh My OpenCode 从以下位置读取和执行钩子：
 ```json
 {
   "agents": {
-    "explore": {
+    "explorer": {
       "model": "anthropic/claude-haiku-4-5",
       "temperature": 0.5
     },
@@ -884,7 +884,7 @@ Oh My OpenCode 从以下位置读取和执行钩子：
 ```json
 {
   "agents": {
-    "explore": {
+    "explorer": {
       "permission": {
         "edit": "deny",
         "bash": "ask",

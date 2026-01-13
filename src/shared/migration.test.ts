@@ -37,7 +37,7 @@ describe("migrateAgentNames", () => {
     const agents = {
       oracle: { model: "openai/gpt-5.2" },
       librarian: { model: "google/gemini-3-flash" },
-      explore: { model: "opencode/grok-code" },
+      explorer: { model: "opencode/grok-code" },
     }
 
     // #when: Migrate agent names
@@ -47,7 +47,7 @@ describe("migrateAgentNames", () => {
     expect(changed).toBe(false)
     expect(migrated["oracle"]).toEqual({ model: "openai/gpt-5.2" })
     expect(migrated["librarian"]).toEqual({ model: "google/gemini-3-flash" })
-    expect(migrated["explore"]).toEqual({ model: "opencode/grok-code" })
+    expect(migrated["explorer"]).toEqual({ model: "opencode/grok-code" })
   })
 
   test("handles case-insensitive migration", () => {

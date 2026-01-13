@@ -768,7 +768,7 @@ Oh My OpenCode は以下の場所からフックを読み込んで実行しま�
     "oracle": {
       "model": "openai/gpt-5.2"  // 戦略的な推論のための GPT
     },
-    "explore": {
+    "explorer": {
       "model": "opencode/grok-code"  // 探索のための高速かつ無料のモデル
     },
   },
@@ -807,7 +807,7 @@ Oh My OpenCode は以下の場所からフックを読み込んで実行しま�
 ```json
 {
   "agents": {
-    "explore": {
+    "explorer": {
       "model": "anthropic/claude-haiku-4-5",
       "temperature": 0.5
     },
@@ -841,7 +841,7 @@ Oh My OpenCode は以下の場所からフックを読み込んで実行しま�
 ```json
 {
   "agents": {
-    "explore": {
+    "explorer": {
       "permission": {
         "edit": "deny",
         "bash": "ask",

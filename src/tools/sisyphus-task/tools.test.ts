@@ -267,7 +267,7 @@ describe("sisyphus-task", () => {
       id: "task-123",
       sessionID: "ses_resume_test",
       description: "Resumed task",
-      agent: "explore",
+      agent: "explorer",
       status: "running",
     }
     
@@ -330,7 +330,7 @@ describe("sisyphus-task", () => {
       id: "task-456",
       sessionID: "ses_bg_resume",
       description: "Background resumed task",
-      agent: "explore",
+      agent: "explorer",
       status: "running",
     }
     

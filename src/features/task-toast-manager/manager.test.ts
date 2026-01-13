@@ -50,7 +50,7 @@ describe("TaskToastManager", () => {
       const task = {
         id: "task_2",
         description: "Test task without skills",
-        agent: "explore",
+        agent: "explorer",
         isBackground: true,
       }
 
@@ -70,7 +70,7 @@ describe("TaskToastManager", () => {
       toastManager.addTask({
         id: "task_1",
         description: "First task",
-        agent: "explore",
+        agent: "explorer",
         isBackground: true,
       })
       toastManager.addTask({
@@ -84,7 +84,7 @@ describe("TaskToastManager", () => {
       toastManager.addTask({
         id: "task_3",
         description: "Third task",
-        agent: "explore",
+        agent: "explorer",
         isBackground: true,
       })
 
@@ -110,7 +110,7 @@ describe("TaskToastManager", () => {
       managerWithConcurrency.addTask({
         id: "task_1",
         description: "Test task",
-        agent: "explore",
+        agent: "explorer",
         isBackground: true,
       })
 
