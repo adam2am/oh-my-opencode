@@ -103,7 +103,8 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       pluginConfig.disabled_agents,
       pluginConfig.agents,
       ctx.directory,
-      config.model as string | undefined
+      config.model as string | undefined,
+      pluginConfig.categories
     );
 
     // Claude Code agents: Do NOT apply permission migration
@@ -298,7 +299,6 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     if (agentResult.librarian) {
       agentResult.librarian.tools = {
         ...agentResult.librarian.tools,
-        call_omo_agent: false,
         "grep_app_*": true,
       };
       log(`[config-handler] librarian.tools AFTER: ${JSON.stringify(agentResult.librarian.tools)}`);
@@ -307,7 +307,6 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
       agentResult["multimodal-looker"].tools = {
         ...agentResult["multimodal-looker"].tools,
         task: false,
-        call_omo_agent: false,
         look_at: false,
       };
     }

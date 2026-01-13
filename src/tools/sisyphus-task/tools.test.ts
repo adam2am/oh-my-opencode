@@ -207,6 +207,70 @@ describe("sisyphus-task", () => {
     })
   })
 
+  describe("category variant", () => {
+    test("passes variant to background model payload", async () => {
+      // #given
+      const { createSisyphusTask } = require("./tools")
+      let launchInput: any
+
+      const mockManager = {
+        launch: async (input: any) => {
+          launchInput = input
+          return {
+            id: "task-variant",
+            sessionID: "session-variant",
+            description: "Variant task",
+            agent: "Sisyphus-Junior",
+            status: "running",
+          }
+        },
+      }
+
+      const mockClient = {
+        app: { agents: async () => ({ data: [] }) },
+        session: {
+          create: async () => ({ data: { id: "test-session" } }),
+          prompt: async () => ({ data: {} }),
+          messages: async () => ({ data: [] }),
+        },
+      }
+
+      const tool = createSisyphusTask({
+        manager: mockManager,
+        client: mockClient,
+        userCategories: {
+          ultrabrain: { model: "openai/gpt-5.2", variant: "xhigh" },
+        },
+      })
+
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "Sisyphus",
+        abort: new AbortController().signal,
+      }
+
+      // #when
+      await tool.execute(
+        {
+          description: "Variant task",
+          prompt: "Do something",
+          category: "ultrabrain",
+          run_in_background: true,
+          skills: [],
+        },
+        toolContext
+      )
+
+      // #then
+      expect(launchInput.model).toEqual({
+        providerID: "openai",
+        modelID: "gpt-5.2",
+        variant: "xhigh",
+      })
+    })
+  })
+
   describe("skills parameter", () => {
     test("SISYPHUS_TASK_DESCRIPTION documents skills parameter", () => {
       // #given / #when / #then
@@ -388,6 +452,7 @@ describe("sisyphus-task", () => {
       
       const mockClient = {
         session: {
+          get: async () => ({ data: { directory: "/project" } }),
           create: async () => ({ data: { id: "ses_sync_error_test" } }),
           prompt: async () => {
             throw new Error("JSON Parse error: Unexpected EOF")
@@ -440,6 +505,7 @@ describe("sisyphus-task", () => {
       
       const mockClient = {
         session: {
+          get: async () => ({ data: { directory: "/project" } }),
           create: async () => ({ data: { id: "ses_sync_success" } }),
           prompt: async () => ({ data: {} }),
           messages: async () => ({
@@ -496,6 +562,7 @@ describe("sisyphus-task", () => {
       
       const mockClient = {
         session: {
+          get: async () => ({ data: { directory: "/project" } }),
           create: async () => ({ data: { id: "ses_agent_notfound" } }),
           prompt: async () => {
             throw new Error("Cannot read property 'name' of undefined agent.name")
@@ -546,6 +613,7 @@ describe("sisyphus-task", () => {
       const mockManager = { launch: async () => ({}) }
       const mockClient = {
         session: {
+          get: async () => ({ data: { directory: "/project" } }),
           create: async () => ({ data: { id: "ses_sync_model" } }),
           prompt: async (input: any) => {
             promptBody = input.body

@@ -75,10 +75,22 @@ export class BackgroundManager {
 
     await this.concurrencyManager.acquire(concurrencyKey)
 
+    const parentSession = await this.client.session.get({
+      path: { id: input.parentSessionID },
+    }).catch((err) => {
+      log(`[background-agent] Failed to get parent session: ${err}`)
+      return null
+    })
+    const parentDirectory = parentSession?.data?.directory ?? this.directory
+    log(`[background-agent] Parent dir: ${parentSession?.data?.directory}, using: ${parentDirectory}`)
+
     const createResult = await this.client.session.create({
       body: {
         parentID: input.parentSessionID,
         title: `Background: ${input.description}`,
+      },
+      query: {
+        directory: parentDirectory,
       },
     }).catch((error) => {
       this.concurrencyManager.release(concurrencyKey)
@@ -152,7 +164,8 @@ export class BackgroundManager {
         system: input.skillContent,
         tools: {
           task: false,
-          call_omo_agent: false,
+          sisyphus_task: false,
+          call_omo_agent: true,
         },
         parts: [{ type: "text", text: input.prompt }],
       },
@@ -313,7 +326,8 @@ export class BackgroundManager {
         agent: existingTask.agent,
         tools: {
           task: false,
-          call_omo_agent: false,
+          sisyphus_task: false,
+          call_omo_agent: true,
         },
         parts: [{ type: "text", text: input.prompt }],
       },
@@ -558,6 +572,11 @@ cleanup(): void {
   }
 
 private async notifyParentSession(task: BackgroundTask): Promise<void> {
+    if (task.concurrencyKey) {
+      this.concurrencyManager.release(task.concurrencyKey)
+      task.concurrencyKey = undefined
+    }
+
     const duration = this.formatDuration(task.startedAt, task.completedAt)
 
     log("[background-agent] notifyParentSession called for task:", task.id)
@@ -638,13 +657,8 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
       log("[background-agent] Failed to send notification:", error)
     }
 
-    // Cleanup after retention period
     const taskId = task.id
     setTimeout(() => {
-      if (task.concurrencyKey) {
-        this.concurrencyManager.release(task.concurrencyKey)
-        task.concurrencyKey = undefined
-      }
       this.clearNotificationsForTask(taskId)
       this.tasks.delete(taskId)
       log("[background-agent] Removed completed task from memory:", taskId)

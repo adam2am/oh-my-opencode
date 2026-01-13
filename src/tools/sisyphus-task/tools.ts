@@ -5,11 +5,12 @@ import type { BackgroundManager } from "../../features/background-agent"
 import type { SisyphusTaskArgs } from "./types"
 import type { CategoryConfig, CategoriesConfig, GitMasterConfig } from "../../config/schema"
 import { SISYPHUS_TASK_DESCRIPTION, DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS } from "./constants"
-import { findNearestMessageWithFields, MESSAGE_STORAGE } from "../../features/hook-message-injector"
+import { findNearestMessageWithFields, findFirstMessageWithAgent, MESSAGE_STORAGE } from "../../features/hook-message-injector"
 import { resolveMultipleSkills } from "../../features/opencode-skill-loader/skill-content"
 import { createBuiltinSkills } from "../../features/builtin-skills/skills"
 import { getTaskToastManager } from "../../features/task-toast-manager"
-import { subagentSessions } from "../../features/claude-code-session-state"
+import { subagentSessions, getSessionAgent } from "../../features/claude-code-session-state"
+import { log } from "../../shared/logger"
 
 type OpencodeClient = PluginInput["client"]
 
@@ -88,6 +89,7 @@ function resolveCategoryConfig(
 export interface SisyphusTaskToolOptions {
   manager: BackgroundManager
   client: OpencodeClient
+  directory: string
   userCategories?: CategoriesConfig
   gitMasterConfig?: GitMasterConfig
 }
@@ -112,7 +114,7 @@ export function buildSystemContent(input: BuildSystemContentInput): string | und
 }
 
 export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefinition {
-  const { manager, client, userCategories, gitMasterConfig } = options
+  const { manager, client, directory, userCategories, gitMasterConfig } = options
 
   return tool({
     description: SISYPHUS_TASK_DESCRIPTION,
@@ -147,7 +149,19 @@ export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefini
 
       const messageDir = getMessageDir(ctx.sessionID)
       const prevMessage = messageDir ? findNearestMessageWithFields(messageDir) : null
-      const parentAgent = ctx.agent ?? prevMessage?.agent
+      const firstMessageAgent = messageDir ? findFirstMessageWithAgent(messageDir) : null
+      const sessionAgent = getSessionAgent(ctx.sessionID)
+      const parentAgent = ctx.agent ?? sessionAgent ?? firstMessageAgent ?? prevMessage?.agent
+      
+      log("[sisyphus_task] parentAgent resolution", {
+        sessionID: ctx.sessionID,
+        messageDir,
+        ctxAgent: ctx.agent,
+        sessionAgent,
+        firstMessageAgent,
+        prevMessageAgent: prevMessage?.agent,
+        resolvedParentAgent: parentAgent,
+      })
       const parentModel = prevMessage?.model?.providerID && prevMessage?.model?.modelID
         ? { providerID: prevMessage.model.providerID, modelID: prevMessage.model.modelID }
         : undefined
@@ -210,6 +224,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
               tools: {
                 task: false,
                 sisyphus_task: false,
+                call_omo_agent: true,
               },
               parts: [{ type: "text", text: args.prompt }],
             },
@@ -302,7 +317,7 @@ ${textContent || "(No text output)"}`
       }
 
       let agentToUse: string
-      let categoryModel: { providerID: string; modelID: string } | undefined
+      let categoryModel: { providerID: string; modelID: string; variant?: string } | undefined
       let categoryPromptAppend: string | undefined
 
       if (args.category) {
@@ -312,7 +327,12 @@ ${textContent || "(No text output)"}`
         }
 
         agentToUse = SISYPHUS_JUNIOR_AGENT
-        categoryModel = parseModelString(resolved.config.model)
+        const parsedModel = parseModelString(resolved.config.model)
+        categoryModel = parsedModel
+          ? (resolved.config.variant
+            ? { ...parsedModel, variant: resolved.config.variant }
+            : parsedModel)
+          : undefined
         categoryPromptAppend = resolved.promptAppend || undefined
       } else {
         agentToUse = args.subagent_type!.trim()
@@ -387,10 +407,18 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
       let syncSessionID: string | undefined
 
       try {
+        const parentSession = client.session.get
+          ? await client.session.get({ path: { id: ctx.sessionID } }).catch(() => null)
+          : null
+        const parentDirectory = parentSession?.data?.directory ?? directory
+
         const createResult = await client.session.create({
           body: {
             parentID: ctx.sessionID,
             title: `Task: ${args.description}`,
+          },
+          query: {
+            directory: parentDirectory,
           },
         })
 
@@ -428,6 +456,7 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
               tools: {
                 task: false,
                 sisyphus_task: false,
+                call_omo_agent: true,
               },
               parts: [{ type: "text", text: args.prompt }],
               ...(categoryModel ? { model: categoryModel } : {}),
@@ -453,41 +482,64 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
         const pollStart = Date.now()
         let lastMsgCount = 0
         let stablePolls = 0
+        let pollCount = 0
+
+        log("[sisyphus_task] Starting poll loop", { sessionID, agentToUse })
 
         while (Date.now() - pollStart < MAX_POLL_TIME_MS) {
+          if (ctx.abort?.aborted) {
+            log("[sisyphus_task] Aborted by user", { sessionID })
+            if (toastManager && taskId) toastManager.removeTask(taskId)
+            return `Task aborted.\n\nSession ID: ${sessionID}`
+          }
+
           await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
+          pollCount++
 
           const statusResult = await client.session.status()
           const allStatuses = (statusResult.data ?? {}) as Record<string, { type: string }>
           const sessionStatus = allStatuses[sessionID]
 
-          // If session is actively running, reset stability
+          if (pollCount % 10 === 0) {
+            log("[sisyphus_task] Poll status", {
+              sessionID,
+              pollCount,
+              elapsed: Math.floor((Date.now() - pollStart) / 1000) + "s",
+              sessionStatus: sessionStatus?.type ?? "not_in_status",
+              stablePolls,
+              lastMsgCount,
+            })
+          }
+
           if (sessionStatus && sessionStatus.type !== "idle") {
             stablePolls = 0
             lastMsgCount = 0
             continue
           }
 
-          // Session is idle or not in status - check message stability
           const elapsed = Date.now() - pollStart
           if (elapsed < MIN_STABILITY_TIME_MS) {
-            continue  // Don't accept completion too early
+            continue
           }
 
-          // Get current message count
           const messagesCheck = await client.session.messages({ path: { id: sessionID } })
           const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as Array<unknown>
           const currentMsgCount = msgs.length
 
-          if (currentMsgCount > 0 && currentMsgCount === lastMsgCount) {
+          if (currentMsgCount === lastMsgCount) {
             stablePolls++
             if (stablePolls >= STABILITY_POLLS_REQUIRED) {
-              break  // Messages stable for 3 polls - task complete
+              log("[sisyphus_task] Poll complete - messages stable", { sessionID, pollCount, currentMsgCount })
+              break
             }
           } else {
             stablePolls = 0
             lastMsgCount = currentMsgCount
           }
+        }
+
+        if (Date.now() - pollStart >= MAX_POLL_TIME_MS) {
+          log("[sisyphus_task] Poll timeout reached", { sessionID, pollCount, lastMsgCount, stablePolls })
         }
 
         const messagesResult = await client.session.messages({
