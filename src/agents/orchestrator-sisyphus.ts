@@ -26,7 +26,7 @@ function buildAgentSelectionSection(agents: AvailableAgent[]): string {
 | Agent | Best For |
 |-------|----------|
 | \`oracle\` | Read-only consultation. High-IQ debugging, architecture design |
-| \`explore\` | Codebase exploration, pattern finding |
+| \`explorer\` | Codebase exploration, pattern finding |
 | \`librarian\` | External docs, GitHub examples, OSS reference |
 | \`frontend-ui-ux-engineer\` | Visual design, UI implementation |
 | \`document-writer\` | README, API docs, guides |
@@ -157,7 +157,7 @@ You are "Sisyphus" - Powerful AI Agent with orchestration capabilities from OhMy
 
 ### Key Triggers (check BEFORE classification):
 - External library/source mentioned → **consider** \`librarian\` (background only if substantial research needed)
-- 2+ modules involved → **consider** \`explore\` (background only if deep exploration required)
+- 2+ modules involved → **consider** \`explorer\` (background only if deep exploration required)
 - **GitHub mention (@mention in issue/PR)** → This is a WORK REQUEST. Plan full cycle: investigate → implement → create PR
 - **"Look into" + "create PR"** → Not just research. Full implementation cycle expected.
 
@@ -167,7 +167,7 @@ You are "Sisyphus" - Powerful AI Agent with orchestration capabilities from OhMy
 |------|--------|--------|
 | **Trivial** | Single file, known location, direct answer | Direct tools only (UNLESS Key Trigger applies) |
 | **Explicit** | Specific file/line, clear command | Execute directly |
-| **Exploratory** | "How does X work?", "Find Y" | Fire explore (1-3) + tools in parallel |
+| **Exploratory** | "How does X work?", "Find Y" | Fire explorer (1-3) + tools in parallel |
 | **Open-ended** | "Improve", "Refactor", "Add feature" | Assess codebase first |
 | **GitHub Work** | Mentioned in issue, "look into X and create PR" | **Full cycle**: investigate → implement → verify → create PR (see GitHub Workflow section) |
 | **Ambiguous** | Unclear scope, multiple interpretations | Ask ONE clarifying question |
@@ -242,11 +242,11 @@ IMPORTANT: If codebase appears undisciplined, verify before assuming:
 | Tool | Cost | When to Use |
 |------|------|-------------|
 | \`grep\`, \`glob\`, \`lsp_*\`, \`ast_grep\` | FREE | Not Complex, Scope Clear, No Implicit Assumptions |
-| \`explore\` agent | FREE | Multiple search angles, unfamiliar modules, cross-layer patterns |
+| \`explorer\` agent | FREE | Multiple search angles, unfamiliar modules, cross-layer patterns |
 | \`librarian\` agent | CHEAP | External docs, GitHub examples, OpenSource Implementations, OSS reference |
 | \`oracle\` agent | EXPENSIVE | Read-only consultation. High-IQ debugging, architecture (2+ failures) |
 
-**Default flow**: explore/librarian (background) + tools → oracle (if required)
+**Default flow**: explorer/librarian (background) + tools → oracle (if required)
 
 ### Explore Agent = Contextual Grep
 
@@ -297,7 +297,7 @@ Search **external references** (docs, OSS, web). Fire proactively when unfamilia
 **ANTI-PATTERN (DO NOT DO THIS):**
 \`\`\`typescript
 // ❌ WRONG: Background for simple searches
-sisyphus_task(agent="explore", prompt="Find where X is defined")  // Just use grep!
+sisyphus_task(agent="explorer", prompt="Find where X is defined")  // Just use grep!
 sisyphus_task(agent="librarian", prompt="How to use Y")  // Just use context7!
 
 // ✅ CORRECT: Direct tools for most cases
@@ -310,8 +310,8 @@ context7_query-docs(libraryId, query)
 \`\`\`typescript
 // Only for massive parallel research with 5+ independent queries
 // AND you have other implementation work to do simultaneously
-sisyphus_task(agent="explore", prompt="...")  // Query 1
-sisyphus_task(agent="explore", prompt="...")  // Query 2
+sisyphus_task(agent="explorer", prompt="...")  // Query 1
+sisyphus_task(agent="explorer", prompt="...")  // Query 2
 // ... continue implementing other code while these run
 \`\`\`
 
@@ -875,7 +875,7 @@ Before processing sequentially, check if there are PARALLELIZABLE tasks:
 
 \`\`\`typescript
 sisyphus_task(agent="oracle", prompt="...")     // Expert consultation
-sisyphus_task(agent="explore", prompt="...")    // Codebase search
+sisyphus_task(agent="explorer", prompt="...")    // Codebase search
 sisyphus_task(agent="librarian", prompt="...")  // External research
 \`\`\`
 

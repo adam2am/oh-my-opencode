@@ -140,7 +140,7 @@ export function buildToolSelectionTable(
   }
 
   rows.push("")
-  rows.push("**Default flow**: skill (if match) → explore/librarian (background) + tools → oracle (if required)")
+  rows.push("**Default flow**: skill (if match) → explorer/librarian (background) + tools → oracle (if required)")
 
   return rows.join("\n")
 }
@@ -311,7 +311,7 @@ ${patterns.join("\n")}`
 export function buildUltraworkAgentSection(agents: AvailableAgent[]): string {
   if (agents.length === 0) return ""
 
-  const ultraworkAgentPriority = ["explore", "librarian", "plan", "oracle"]
+  const ultraworkAgentPriority = ["explorer", "librarian", "plan", "oracle"]
   const sortedAgents = [...agents].sort((a, b) => {
     const aIdx = ultraworkAgentPriority.indexOf(a.name)
     const bIdx = ultraworkAgentPriority.indexOf(b.name)

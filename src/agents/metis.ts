@@ -79,9 +79,9 @@ Confirm:
 
 **Pre-Analysis Actions** (YOU should do before questioning):
 \`\`\`
-// Launch these explore agents FIRST
-call_omo_agent(subagent_type="explore", prompt="Find similar implementations...")
-call_omo_agent(subagent_type="explore", prompt="Find project patterns for this type...")
+// Launch these explorer agents FIRST
+call_omo_agent(subagent_type="explorer", prompt="Find similar implementations...")
+call_omo_agent(subagent_type="explorer", prompt="Find project patterns for this type...")
 call_omo_agent(subagent_type="librarian", prompt="Find best practices for [technology]...")
 \`\`\`
 
@@ -130,7 +130,7 @@ call_omo_agent(subagent_type="librarian", prompt="Find best practices for [techn
 
 **Behavior**:
 1. Start with open-ended exploration questions
-2. Use explore/librarian to gather context as user provides direction
+2. Use explorer/librarian to gather context as user provides direction
 3. Incrementally refine understanding
 4. Don't finalize until user confirms direction
 
@@ -195,7 +195,7 @@ Task(
 **Investigation Structure**:
 \`\`\`
 // Parallel probes
-call_omo_agent(subagent_type="explore", prompt="Find how X is currently handled...")
+call_omo_agent(subagent_type="explorer", prompt="Find how X is currently handled...")
 call_omo_agent(subagent_type="librarian", prompt="Find official docs for Y...")
 call_omo_agent(subagent_type="librarian", prompt="Find OSS implementations of Z...")
 \`\`\`
@@ -217,7 +217,7 @@ call_omo_agent(subagent_type="librarian", prompt="Find OSS implementations of Z.
 **Rationale**: [Why this classification]
 
 ## Pre-Analysis Findings
-[Results from explore/librarian agents if launched]
+[Results from explorer/librarian agents if launched]
 [Relevant codebase patterns discovered]
 
 ## Questions for User
@@ -250,7 +250,7 @@ call_omo_agent(subagent_type="librarian", prompt="Find OSS implementations of Z.
 | \`lsp_find_references\` | Map impact before changes | Refactoring |
 | \`lsp_rename\` | Safe symbol renames | Refactoring |
 | \`ast_grep_search\` | Find structural patterns | Refactoring, Build |
-| \`explore\` agent | Codebase pattern discovery | Build, Research |
+| \`explorer\` agent | Codebase pattern discovery | Build, Research |
 | \`librarian\` agent | External docs, best practices | Build, Architecture, Research |
 | \`oracle\` agent | Read-only consultation. High-IQ debugging, architecture | Architecture |
 

@@ -56,7 +56,7 @@ Skills are specialized workflows. When relevant, they handle the task better tha
 | **Skill Match** | Matches skill trigger phrase | **INVOKE skill FIRST** via \`skill\` tool |
 | **Trivial** | Single file, known location, direct answer | Direct tools only (UNLESS Key Trigger applies) |
 | **Explicit** | Specific file/line, clear command | Execute directly |
-| **Exploratory** | "How does X work?", "Find Y" | Fire explore (1-3) + tools in parallel |
+| **Exploratory** | "How does X work?", "Find Y" | Fire explorer (1-3) + tools in parallel |
 | **Open-ended** | "Improve", "Refactor", "Add feature" | Assess codebase first |
 | **GitHub Work** | Mentioned in issue, "look into X and create PR" | **Full cycle**: investigate → implement → verify → create PR (see GitHub Workflow section) |
 | **Ambiguous** | Unclear scope, multiple interpretations | Ask ONE clarifying question |
@@ -207,13 +207,13 @@ sisyphus_task(
 
 \`\`\`
 I will use sisyphus_task with:
-- **Agent**: explore
+- **Agent**: explorer
 - **Reason**: Need to find all authentication implementations across the codebase - this is contextual grep
 - **Skills**: []
 - **Expected Outcome**: List of files containing auth patterns
 
 sisyphus_task(
-  agent="explore",
+  agent="explorer",
   background=true,
   prompt="Find all authentication implementations in the codebase"
 )
@@ -247,15 +247,15 @@ const SISYPHUS_PARALLEL_EXECUTION = `### Parallel Execution (DEFAULT behavior)
 \`\`\`typescript
 // CORRECT: Always background, always parallel
 // Contextual Grep (internal)
-sisyphus_task(agent="explore", prompt="Find auth implementations in our codebase...")
-sisyphus_task(agent="explore", prompt="Find error handling patterns here...")
+sisyphus_task(agent="explorer", prompt="Find auth implementations in our codebase...")
+sisyphus_task(agent="explorer", prompt="Find error handling patterns here...")
 // Reference Grep (external)
 sisyphus_task(agent="librarian", prompt="Find JWT best practices in official docs...")
 sisyphus_task(agent="librarian", prompt="Find how production apps handle auth in Express...")
 // Continue working immediately. Collect with background_output when needed.
 
 // WRONG: Sequential or blocking
-result = task(...)  // Never wait synchronously for explore/librarian
+result = task(...)  // Never wait synchronously for explorer/librarian
 \`\`\`
 
 ### Background Result Collection:
@@ -620,7 +620,7 @@ export function createSisyphusAgent(
 
   const base = {
     description:
-      "Sisyphus - Powerful AI orchestrator from OhMyOpenCode. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically to specialized agents. Uses explore for internal code (parallel-friendly), librarian only for external docs, and always delegates UI work to frontend engineer.",
+      "Sisyphus - Powerful AI orchestrator from OhMyOpenCode. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically to specialized agents. Uses explorer for internal code (parallel-friendly), librarian only for external docs, and always delegates UI work to frontend engineer.",
     mode: "primary" as const,
     model,
     maxTokens: 64000,

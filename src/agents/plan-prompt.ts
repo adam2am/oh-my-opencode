@@ -3,7 +3,7 @@
  *
  * A streamlined planner that:
  * - SKIPS user dialogue/Q&A (no user questioning)
- * - KEEPS context gathering via explore/librarian agents
+ * - KEEPS context gathering via explorer/librarian agents
  * - Uses Metis ONLY for AI slop guardrails
  * - Outputs plan directly to user (no file creation)
  *
@@ -51,7 +51,7 @@ Launch **in parallel**:
 
 **Explore agents** (3-5 parallel):
 \`\`\`
-Task(subagent_type="explore", prompt="Find [specific aspect] in codebase...")
+Task(subagent_type="explorer", prompt="Find [specific aspect] in codebase...")
 \`\`\`
 - Similar implementations
 - Project patterns and conventions

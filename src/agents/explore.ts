@@ -7,7 +7,7 @@ export const EXPLORE_PROMPT_METADATA: AgentPromptMetadata = {
   category: "exploration",
   cost: "FREE",
   promptAlias: "Explore",
-  keyTrigger: "2+ modules involved → fire `explore` background",
+  keyTrigger: "2+ modules involved → fire `explorer` background",
   triggers: [
     { domain: "Explore", trigger: "Find existing codebase structure, patterns and styles" },
   ],

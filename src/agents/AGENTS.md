@@ -2,7 +2,7 @@
 
 ## OVERVIEW
 
-AI agent definitions for multi-model orchestration. 7 specialized agents: Sisyphus (orchestrator), oracle (read-only consultation), librarian (research), explore (grep), frontend-ui-ux-engineer, document-writer, multimodal-looker.
+AI agent definitions for multi-model orchestration. 7 specialized agents: Sisyphus (orchestrator), oracle (read-only consultation), librarian (research), explorer (grep), frontend-ui-ux-engineer, document-writer, multimodal-looker.
 
 ## STRUCTURE
 
@@ -13,7 +13,7 @@ agents/
 ├── sisyphus-junior.ts       # Junior variant for delegated tasks
 ├── oracle.ts                # Strategic advisor (GPT-5.2)
 ├── librarian.ts             # Multi-repo research (Claude Sonnet 4.5)
-├── explore.ts               # Fast codebase grep (Grok Code)
+├── explorer.ts               # Fast codebase grep (Grok Code)
 ├── frontend-ui-ux-engineer.ts  # UI generation (Gemini 3 Pro)
 ├── document-writer.ts       # Technical docs (Gemini 3 Pro)
 ├── multimodal-looker.ts     # PDF/image analysis (Gemini 3 Flash)
@@ -34,7 +34,7 @@ agents/
 | Sisyphus | anthropic/claude-opus-4-5 | - | Primary orchestrator with extended thinking |
 | oracle | openai/gpt-5.2 | - | Read-only consultation. High-IQ debugging, architecture |
 | librarian | opencode/glm-4.7-free | - | Docs, OSS research, GitHub examples |
-| explore | opencode/grok-code | google/gemini-3-flash, anthropic/claude-haiku-4-5 | Fast contextual grep |
+| explorer | opencode/grok-code | google/gemini-3-flash, anthropic/claude-haiku-4-5 | Fast contextual grep |
 | frontend-ui-ux-engineer | google/gemini-3-pro-preview | - | UI/UX code generation |
 | document-writer | google/gemini-3-pro-preview | - | Technical writing |
 | multimodal-looker | google/gemini-3-flash | - | PDF/image analysis |
@@ -74,7 +74,7 @@ agents/
 2. Check installer settings (claude max20, gemini antigravity)
 3. Use default model
 
-**Fallback order for explore**:
+**Fallback order for explorer**:
 - If gemini antigravity enabled → `google/gemini-3-flash`
 - If claude max20 enabled → `anthropic/claude-haiku-4-5`
 - Default → `opencode/grok-code` (free)
