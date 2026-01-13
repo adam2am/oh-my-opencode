@@ -80,7 +80,7 @@ Should I proceed with [recommendation], or would you prefer differently?
 
 \`\`\`
 TodoWrite([
-  {"id": "phase-1", "content": "PHASE 1: Codebase Analysis - launch parallel explore agents", "status": "pending", "priority": "high"},
+  {"id": "phase-1", "content": "PHASE 1: Codebase Analysis - launch parallel explorer agents", "status": "pending", "priority": "high"},
   {"id": "phase-2", "content": "PHASE 2: Build Codemap - map dependencies and impact zones", "status": "pending", "priority": "high"},
   {"id": "phase-3", "content": "PHASE 3: Test Assessment - analyze test coverage and verification strategy", "status": "pending", "priority": "high"},
   {"id": "phase-4", "content": "PHASE 4: Plan Generation - invoke Plan agent for detailed refactoring plan", "status": "pending", "priority": "high"},
