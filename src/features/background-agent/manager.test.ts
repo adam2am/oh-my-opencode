@@ -751,10 +751,10 @@ describe("BackgroundManager.notifyParentSession - agent context preservation", (
   })
 })
 
-describe("validateSessionHasOutput - tool completion detection", () => {
+describe("validateSessionHasOutput - fault-tolerant completion detection", () => {
   /**
-   * Tests for validateSessionHasOutput ensuring it correctly handles tool completion states.
-   * A task should NOT be marked complete while tools are still running/pending.
+   * Tests for multi-layer fault-tolerant completion detection.
+   * All layers must pass for a task to be marked complete.
    */
 
   function validateSessionHasOutput(messages: Array<{
@@ -766,30 +766,13 @@ describe("validateSessionHasOutput - tool completion detection", () => {
       content?: string | unknown[]
     }>
   }>): boolean {
-    const hasAssistantOrToolMessage = messages.some(
+    // Layer 1: Basic sanity - has assistant/tool messages
+    const assistantMessages = messages.filter(
       (m) => m.info?.role === "assistant" || m.info?.role === "tool"
     )
+    if (assistantMessages.length === 0) return false
 
-    if (!hasAssistantOrToolMessage) {
-      return false
-    }
-
-    const hasContent = messages.some((m) => {
-      if (m.info?.role !== "assistant" && m.info?.role !== "tool") return false
-      const parts = m.parts ?? []
-      return parts.some((p) => 
-        (p.type === "text" && p.text && p.text.trim().length > 0) ||
-        (p.type === "reasoning" && p.text && p.text.trim().length > 0) ||
-        (p.type === "tool" && (p.state?.status === "completed" || p.state?.status === "error")) ||
-        (p.type === "tool_result" && p.content && 
-          (typeof p.content === "string" ? p.content.trim().length > 0 : (p.content as unknown[]).length > 0))
-      )
-    })
-
-    if (!hasContent) {
-      return false
-    }
-
+    // Layer 2: Tool execution guard - no running/pending tools
     const hasRunningTools = messages.some((m) => {
       if (m.info?.role !== "assistant") return false
       const parts = m.parts ?? []
@@ -797,9 +780,27 @@ describe("validateSessionHasOutput - tool completion detection", () => {
         p.type === "tool" && (p.state?.status === "running" || p.state?.status === "pending")
       )
     })
+    if (hasRunningTools) return false
 
-    if (hasRunningTools) {
-      return false
+    // Layer 3: Output structure - last assistant message should end with "text"
+    const lastAssistantMsg = assistantMessages.filter((m) => m.info?.role === "assistant").pop()
+    if (lastAssistantMsg) {
+      const parts = lastAssistantMsg.parts ?? []
+      if (parts.length > 0) {
+        const lastPart = parts[parts.length - 1]
+        
+        // If last part is reasoning-only, agent is still thinking
+        if (lastPart.type === "reasoning" && !parts.some((p) => p.type === "text")) {
+          return false
+        }
+        
+        // If last part is a tool call, check if there's text after it
+        if (lastPart.type === "tool") {
+          const lastToolIndex = parts.findLastIndex((pt) => pt.type === "tool")
+          const hasTextAfterTools = parts.some((p, i) => p.type === "text" && i > lastToolIndex)
+          if (!hasTextAfterTools) return false
+        }
+      }
     }
 
     return true
@@ -849,8 +850,8 @@ describe("validateSessionHasOutput - tool completion detection", () => {
     expect(result).toBe(false)
   })
 
-  test("should return true when tool is completed with output", () => {
-    // #given - session with a completed tool call
+  test("should return false when tool is completed but no text follows (Layer 3)", () => {
+    // #given - session with a completed tool call but text is BEFORE the tool
     const messages = [
       {
         info: { role: "assistant" },
@@ -867,12 +868,35 @@ describe("validateSessionHasOutput - tool completion detection", () => {
     // #when
     const result = validateSessionHasOutput(messages)
 
-    // #then
+    // #then - Layer 3: last part is tool, no text after it = not complete
+    expect(result).toBe(false)
+  })
+
+  test("should return true when tool is completed AND text follows", () => {
+    // #given - session with completed tool AND final text response
+    const messages = [
+      {
+        info: { role: "assistant" },
+        parts: [
+          { type: "text", text: "Let me search..." },
+          { 
+            type: "tool", 
+            state: { status: "completed", output: "Found 5 facts" }
+          },
+          { type: "text", text: "Here are 5 facts about cats:\n1. Cats sleep 16 hours..." }
+        ]
+      }
+    ]
+
+    // #when
+    const result = validateSessionHasOutput(messages)
+
+    // #then - Has text after tool = complete
     expect(result).toBe(true)
   })
 
-  test("should return true when tool errored (error is a terminal state)", () => {
-    // #given - session with a tool that errored
+  test("should return false when tool errored but no text follows (Layer 3)", () => {
+    // #given - session with a tool that errored but no text response after
     const messages = [
       {
         info: { role: "assistant" },
@@ -888,7 +912,29 @@ describe("validateSessionHasOutput - tool completion detection", () => {
     // #when
     const result = validateSessionHasOutput(messages)
 
-    // #then - error is a terminal state, so task can complete
+    // #then - Layer 3: last part is tool (even errored), no text after = not complete
+    expect(result).toBe(false)
+  })
+
+  test("should return true when tool errored AND text follows with error message", () => {
+    // #given - session with errored tool AND agent's error response
+    const messages = [
+      {
+        info: { role: "assistant" },
+        parts: [
+          { 
+            type: "tool", 
+            state: { status: "error" }
+          },
+          { type: "text", text: "I encountered an error while searching. Let me try a different approach..." }
+        ]
+      }
+    ]
+
+    // #when
+    const result = validateSessionHasOutput(messages)
+
+    // #then - Has text after tool = complete
     expect(result).toBe(true)
   })
 
@@ -913,6 +959,69 @@ describe("validateSessionHasOutput - tool completion detection", () => {
 
     // #then - Even though text exists, tool is running so not complete
     // This is the key scenario: agent wrote text, called tool, waiting for result
+    expect(result).toBe(false)
+  })
+
+  test("should return false when only reasoning exists without final text (Layer 3)", () => {
+    // #given - session with ONLY reasoning/thinking content, no final text output
+    // This happens when agent is still thinking/planning but hasn't written final answer
+    const messages = [
+      {
+        info: { role: "assistant" },
+        parts: [
+          { 
+            type: "reasoning", 
+            text: "<analysis>\n**Literal Request**: Find 5 interesting facts about cats\n**Actual Need**: General knowledge retrieval\n</analysis>\n\nI'll search for interesting facts about cats..." 
+          }
+        ]
+      }
+    ]
+
+    // #when
+    const result = validateSessionHasOutput(messages)
+
+    // #then - Reasoning alone should NOT count as complete output
+    // Agent is still thinking, hasn't produced final answer yet
+    expect(result).toBe(false)
+  })
+
+  test("should return true when reasoning AND final text exist", () => {
+    // #given - session with both reasoning and final text output
+    const messages = [
+      {
+        info: { role: "assistant" },
+        parts: [
+          { type: "reasoning", text: "User wants cat facts, let me search..." },
+          { type: "text", text: "Here are 5 interesting facts about cats:\n1. Cats sleep 12-16 hours per day\n2. ..." }
+        ]
+      }
+    ]
+
+    // #when
+    const result = validateSessionHasOutput(messages)
+
+    // #then - Has final text output, so complete
+    expect(result).toBe(true)
+  })
+
+  test("should return false when reasoning exists with incomplete tool call", () => {
+    // #given - agent wrote reasoning, called a tool, tool still running
+    // This is the exact scenario that caused truncated output
+    const messages = [
+      {
+        info: { role: "assistant" },
+        parts: [
+          { type: "reasoning", text: "I need to search for cat facts using web search" },
+          { type: "text", text: "Let me search for that..." },
+          { type: "tool", state: { status: "running" } }
+        ]
+      }
+    ]
+
+    // #when
+    const result = validateSessionHasOutput(messages)
+
+    // #then - Tool still running, not complete
     expect(result).toBe(false)
   })
 })

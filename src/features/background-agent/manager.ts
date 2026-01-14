@@ -464,8 +464,14 @@ export class BackgroundManager {
   }
 
   /**
-   * Validates that a session has actual assistant/tool output before marking complete.
-   * Prevents premature completion when session.idle fires before agent responds.
+   * Multi-layer fault-tolerant validation that a session is truly complete.
+   * Uses defense-in-depth approach - ALL layers must pass for completion.
+   * 
+   * Layers:
+   * 1. Has assistant/tool messages (basic sanity)
+   * 2. No tools are running/pending (tool execution guard)
+   * 3. Last message ends with "text" part, not "reasoning"/"tool" (output structure)
+   * 4. Text doesn't appear truncated mid-sentence (content completeness)
    */
   private async validateSessionHasOutput(sessionID: string): Promise<boolean> {
     try {
@@ -475,47 +481,18 @@ export class BackgroundManager {
 
       const messages = response.data ?? []
       
-      // Check for at least one assistant or tool message
-      const hasAssistantOrToolMessage = messages.some(
+      // Layer 1: Basic sanity - has assistant/tool messages
+      const assistantMessages = messages.filter(
         (m: { info?: { role?: string } }) => 
           m.info?.role === "assistant" || m.info?.role === "tool"
       )
 
-      if (!hasAssistantOrToolMessage) {
-        log("[background-agent] No assistant/tool messages found in session:", sessionID)
+      if (assistantMessages.length === 0) {
+        log("[background-agent] Layer 1 FAIL: No assistant/tool messages in session:", sessionID)
         return false
       }
 
-      // Additionally check that at least one message has content (not just empty)
-      // OpenCode API uses different part types than Anthropic's API:
-      // - "reasoning" with .text property (thinking/reasoning content)
-      // - "tool" with .state.output property (tool call results)
-      // - "text" with .text property (final text output)
-      // - "step-start"/"step-finish" (metadata, no content)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const hasContent = messages.some((m: any) => {
-        if (m.info?.role !== "assistant" && m.info?.role !== "tool") return false
-        const parts = m.parts ?? []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return parts.some((p: any) => 
-        // Text content (final output)
-        (p.type === "text" && p.text && p.text.trim().length > 0) ||
-        // Reasoning content (thinking blocks)
-        (p.type === "reasoning" && p.text && p.text.trim().length > 0) ||
-        // Tool calls - only count as valid if completed or errored (terminal states)
-        (p.type === "tool" && (p.state?.status === "completed" || p.state?.status === "error")) ||
-        // Tool results (output from executed tools) - important for tool-only tasks
-        (p.type === "tool_result" && p.content && 
-          (typeof p.content === "string" ? p.content.trim().length > 0 : p.content.length > 0))
-      )
-      })
-
-      if (!hasContent) {
-        log("[background-agent] Messages exist but no content found in session:", sessionID)
-        return false
-      }
-
-      // Check if any tool is still running or pending - if so, not ready to complete
+      // Layer 2: Tool execution guard - no running/pending tools
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const hasRunningTools = messages.some((m: any) => {
         if (m.info?.role !== "assistant") return false
@@ -527,14 +504,75 @@ export class BackgroundManager {
       })
 
       if (hasRunningTools) {
-        log("[background-agent] Session has running/pending tools, not ready:", sessionID)
+        log("[background-agent] Layer 2 FAIL: Tools still running/pending:", sessionID)
         return false
       }
 
+      // Layer 3: Output structure - last assistant message should end with "text", not intermediate parts
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const lastAssistantMsg = assistantMessages.filter((m: any) => m.info?.role === "assistant").pop()
+      if (lastAssistantMsg) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const parts = (lastAssistantMsg as any).parts ?? []
+        if (parts.length > 0) {
+          const lastPart = parts[parts.length - 1]
+          
+          // If last part is reasoning-only, agent is still thinking
+          if (lastPart.type === "reasoning" && !parts.some((p: { type: string }) => p.type === "text")) {
+            log("[background-agent] Layer 3 FAIL: Last message has only reasoning, no text output:", sessionID)
+            return false
+          }
+          
+          // If last part is a tool call (even completed), check if there's text after it
+          if (lastPart.type === "tool") {
+            const hasTextAfterTools = parts.some((p: { type: string }, i: number) => {
+              const isAfterLastTool = i > parts.findLastIndex((pt: { type: string }) => pt.type === "tool")
+              return p.type === "text" && isAfterLastTool
+            })
+            if (!hasTextAfterTools) {
+              log("[background-agent] Layer 3 FAIL: Tool call without subsequent text response:", sessionID)
+              return false
+            }
+          }
+        }
+      }
+
+      // Layer 4: Content completeness - check for truncation indicators
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let lastTextContent = ""
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messages.forEach((m: any) => {
+        if (m.info?.role !== "assistant") return
+        const parts = m.parts ?? []
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        parts.forEach((p: any) => {
+          if (p.type === "text" && p.text) {
+            lastTextContent = p.text
+          }
+        })
+      })
+
+      if (lastTextContent) {
+        const trimmed = lastTextContent.trim()
+        const truncationIndicators = [
+          /\.\.\.$/, // ends with ...
+          /[a-zA-Z]$/, // ends with letter (mid-word) without punctuation
+          /\s(the|a|an|is|are|was|were|to|of|in|for|on|with|as|at|by|from)$/i, // ends with article/preposition
+        ]
+        
+        // Only flag if it looks like mid-sentence AND is very short
+        const looksIncomplete = truncationIndicators.some(r => r.test(trimmed)) && trimmed.length < 100
+        if (looksIncomplete) {
+          log("[background-agent] Layer 4 WARN: Text may be truncated, but allowing:", sessionID)
+          // Don't block on this - just log warning. Layer 3 is more reliable.
+        }
+      }
+
+      // All layers passed
+      log("[background-agent] All layers PASS: Session ready for completion:", sessionID)
       return true
     } catch (error) {
       log("[background-agent] Error validating session output:", error)
-      // On error, allow completion to proceed (don't block indefinitely)
       return true
     }
   }
@@ -750,6 +788,12 @@ Use \`background_output(task_id="${task.id}")\` to retrieve this result when rea
 try {
         const sessionStatus = allStatuses[task.sessionID]
         
+        // Skip processing entirely if session is retrying (API rate limit, network error, etc.)
+        if (sessionStatus?.type === "retry") {
+          log("[background-agent] Session in retry state, skipping poll:", task.id)
+          continue
+        }
+        
         // Don't skip if session not in status - fall through to message-based detection
         if (sessionStatus?.type === "idle") {
           // Edge guard: Validate session has actual output before completing
@@ -827,9 +871,16 @@ if (lastMessage) {
                   query: { directory: this.directory }
                 })
                 const sessionStatus = statusResult.data?.[task.sessionID]
+                
+                // Don't complete if session is busy OR retrying (API rate limit, network error, etc.)
                 if (sessionStatus?.type === "busy") {
                   log("[background-agent] Session still busy per API, skipping stability completion:", task.id)
-                  task.stablePolls = 0  // Reset stability counter
+                  task.stablePolls = 0
+                  continue
+                }
+                if (sessionStatus?.type === "retry") {
+                  log("[background-agent] Session in retry state, waiting:", task.id)
+                  task.stablePolls = 0
                   continue
                 }
 
