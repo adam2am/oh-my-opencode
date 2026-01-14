@@ -502,8 +502,8 @@ export class BackgroundManager {
         (p.type === "text" && p.text && p.text.trim().length > 0) ||
         // Reasoning content (thinking blocks)
         (p.type === "reasoning" && p.text && p.text.trim().length > 0) ||
-        // Tool calls (indicates work was done)
-        p.type === "tool" ||
+        // Tool calls - only count as valid if completed or errored (terminal states)
+        (p.type === "tool" && (p.state?.status === "completed" || p.state?.status === "error")) ||
         // Tool results (output from executed tools) - important for tool-only tasks
         (p.type === "tool_result" && p.content && 
           (typeof p.content === "string" ? p.content.trim().length > 0 : p.content.length > 0))
@@ -512,6 +512,22 @@ export class BackgroundManager {
 
       if (!hasContent) {
         log("[background-agent] Messages exist but no content found in session:", sessionID)
+        return false
+      }
+
+      // Check if any tool is still running or pending - if so, not ready to complete
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const hasRunningTools = messages.some((m: any) => {
+        if (m.info?.role !== "assistant") return false
+        const parts = m.parts ?? []
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return parts.some((p: any) => 
+          p.type === "tool" && (p.state?.status === "running" || p.state?.status === "pending")
+        )
+      })
+
+      if (hasRunningTools) {
+        log("[background-agent] Session has running/pending tools, not ready:", sessionID)
         return false
       }
 
@@ -806,6 +822,17 @@ if (lastMessage) {
             if (task.lastMsgCount === currentMsgCount) {
               task.stablePolls = (task.stablePolls ?? 0) + 1
               if (task.stablePolls >= 3) {
+                // Check actual session status from API before completing
+                const statusResult = await this.client.session.status({
+                  query: { directory: this.directory }
+                })
+                const sessionStatus = statusResult.data?.[task.sessionID]
+                if (sessionStatus?.type === "busy") {
+                  log("[background-agent] Session still busy per API, skipping stability completion:", task.id)
+                  task.stablePolls = 0  // Reset stability counter
+                  continue
+                }
+
                 // Edge guard: Validate session has actual output before completing
                 const hasValidOutput = await this.validateSessionHasOutput(task.sessionID)
                 if (!hasValidOutput) {

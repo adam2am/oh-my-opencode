@@ -751,6 +751,172 @@ describe("BackgroundManager.notifyParentSession - agent context preservation", (
   })
 })
 
+describe("validateSessionHasOutput - tool completion detection", () => {
+  /**
+   * Tests for validateSessionHasOutput ensuring it correctly handles tool completion states.
+   * A task should NOT be marked complete while tools are still running/pending.
+   */
+
+  function validateSessionHasOutput(messages: Array<{
+    info?: { role?: string }
+    parts?: Array<{ 
+      type?: string
+      text?: string
+      state?: { status?: string; output?: string }
+      content?: string | unknown[]
+    }>
+  }>): boolean {
+    const hasAssistantOrToolMessage = messages.some(
+      (m) => m.info?.role === "assistant" || m.info?.role === "tool"
+    )
+
+    if (!hasAssistantOrToolMessage) {
+      return false
+    }
+
+    const hasContent = messages.some((m) => {
+      if (m.info?.role !== "assistant" && m.info?.role !== "tool") return false
+      const parts = m.parts ?? []
+      return parts.some((p) => 
+        (p.type === "text" && p.text && p.text.trim().length > 0) ||
+        (p.type === "reasoning" && p.text && p.text.trim().length > 0) ||
+        (p.type === "tool" && (p.state?.status === "completed" || p.state?.status === "error")) ||
+        (p.type === "tool_result" && p.content && 
+          (typeof p.content === "string" ? p.content.trim().length > 0 : (p.content as unknown[]).length > 0))
+      )
+    })
+
+    if (!hasContent) {
+      return false
+    }
+
+    const hasRunningTools = messages.some((m) => {
+      if (m.info?.role !== "assistant") return false
+      const parts = m.parts ?? []
+      return parts.some((p) => 
+        p.type === "tool" && (p.state?.status === "running" || p.state?.status === "pending")
+      )
+    })
+
+    if (hasRunningTools) {
+      return false
+    }
+
+    return true
+  }
+
+  test("should return false when tool is still running", () => {
+    // #given - session with a tool call that is still running
+    const messages = [
+      {
+        info: { role: "assistant" },
+        parts: [
+          { type: "text", text: "Let me search for that information..." },
+          { 
+            type: "tool", 
+            state: { status: "running" }  // Tool is still executing!
+          }
+        ]
+      }
+    ]
+
+    // #when
+    const result = validateSessionHasOutput(messages)
+
+    // #then - EXPECTED: false (tool not complete), ACTUAL (bug): true
+    // This test will FAIL with current implementation, exposing the bug
+    expect(result).toBe(false)
+  })
+
+  test("should return false when tool is pending", () => {
+    // #given - session with a pending tool call
+    const messages = [
+      {
+        info: { role: "assistant" },
+        parts: [
+          { 
+            type: "tool", 
+            state: { status: "pending" }
+          }
+        ]
+      }
+    ]
+
+    // #when
+    const result = validateSessionHasOutput(messages)
+
+    // #then - EXPECTED: false (tool not complete)
+    expect(result).toBe(false)
+  })
+
+  test("should return true when tool is completed with output", () => {
+    // #given - session with a completed tool call
+    const messages = [
+      {
+        info: { role: "assistant" },
+        parts: [
+          { type: "text", text: "Here are the results:" },
+          { 
+            type: "tool", 
+            state: { status: "completed", output: "Found 5 facts about cats" }
+          }
+        ]
+      }
+    ]
+
+    // #when
+    const result = validateSessionHasOutput(messages)
+
+    // #then
+    expect(result).toBe(true)
+  })
+
+  test("should return true when tool errored (error is a terminal state)", () => {
+    // #given - session with a tool that errored
+    const messages = [
+      {
+        info: { role: "assistant" },
+        parts: [
+          { 
+            type: "tool", 
+            state: { status: "error" }
+          }
+        ]
+      }
+    ]
+
+    // #when
+    const result = validateSessionHasOutput(messages)
+
+    // #then - error is a terminal state, so task can complete
+    expect(result).toBe(true)
+  })
+
+  test("should return false when only text exists but tool is still running", () => {
+    // #given - session with text AND a running tool
+    const messages = [
+      {
+        info: { role: "assistant" },
+        parts: [
+          { type: "text", text: "I'll search for that now..." },
+          { type: "reasoning", text: "User wants cat facts, I should use web search" },
+          { 
+            type: "tool", 
+            state: { status: "running" }
+          }
+        ]
+      }
+    ]
+
+    // #when
+    const result = validateSessionHasOutput(messages)
+
+    // #then - Even though text exists, tool is running so not complete
+    // This is the key scenario: agent wrote text, called tool, waiting for result
+    expect(result).toBe(false)
+  })
+})
+
 function buildNotificationPromptBody(task: BackgroundTask): Record<string, unknown> {
   const body: Record<string, unknown> = {
     parts: [{ type: "text", text: `[BACKGROUND TASK COMPLETED] Task "${task.description}" finished.` }],
