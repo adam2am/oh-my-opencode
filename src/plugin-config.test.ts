@@ -88,7 +88,7 @@ describe("mergeConfigs", () => {
       const override: OhMyOpenCodeConfig = {
         agents: {
           oracle: { temperature: 0.5 },
-          explore: { model: "anthropic/claude-haiku-4-5" },
+          explorer: { model: "anthropic/claude-haiku-4-5" },
         },
       };
 
@@ -96,7 +96,7 @@ describe("mergeConfigs", () => {
 
       expect(result.agents?.oracle?.model).toBe("openai/gpt-5.2");
       expect(result.agents?.oracle?.temperature).toBe(0.5);
-      expect(result.agents?.explore?.model).toBe("anthropic/claude-haiku-4-5");
+      expect(result.agents?.explorer?.model).toBe("anthropic/claude-haiku-4-5");
     });
 
     it("should merge disabled arrays without duplicates", () => {
