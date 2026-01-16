@@ -56,7 +56,7 @@ Skills are specialized workflows. When relevant, they handle the task better tha
 | **Skill Match** | Matches skill trigger phrase | **INVOKE skill FIRST** via \`skill\` tool |
 | **Trivial** | Single file, known location, direct answer | Direct tools only (UNLESS Key Trigger applies) |
 | **Explicit** | Specific file/line, clear command | Execute directly |
-| **Exploratory** | "How does X work?", "Find Y" | Fire explorer (1-3) + tools in parallel |
+| **Exploratory** | "How does X work?", "Find Y" | Fire explore (1-3) + tools in parallel |
 | **Open-ended** | "Improve", "Refactor", "Add feature" | Assess codebase first |
 | **GitHub Work** | Mentioned in issue, "look into X and create PR" | **Full cycle**: investigate → implement → verify → create PR (see GitHub Workflow section) |
 | **Ambiguous** | Unclear scope, multiple interpretations | Ask ONE clarifying question |
@@ -122,7 +122,7 @@ IMPORTANT: If codebase appears undisciplined, verify before assuming:
 
 const SISYPHUS_PRE_DELEGATION_PLANNING = `### Pre-Delegation Planning (MANDATORY)
 
-**BEFORE every \`sisyphus_task\` call, EXPLICITLY declare your reasoning.**
+**BEFORE every \`delegate_task\` call, EXPLICITLY declare your reasoning.**
 
 #### Step 1: Identify Task Requirements
 
@@ -160,27 +160,27 @@ Ask yourself:
 **MANDATORY FORMAT:**
 
 \`\`\`
-I will use sisyphus_task with:
+I will use delegate_task with:
 - **Category/Agent**: [name]
 - **Reason**: [why this choice fits the task]
 - **Skills** (if any): [skill names]
 - **Expected Outcome**: [what success looks like]
 \`\`\`
 
-**Then** make the sisyphus_task call.
+**Then** make the delegate_task call.
 
 #### Examples
 
 **✅ CORRECT: Explicit Pre-Declaration**
 
 \`\`\`
-I will use sisyphus_task with:
+I will use delegate_task with:
 - **Category**: visual
 - **Reason**: This task requires building a responsive dashboard UI with animations - visual design is the core requirement
 - **Skills**: ["frontend-ui-ux"]
 - **Expected Outcome**: Fully styled, responsive dashboard component with smooth transitions
 
-sisyphus_task(
+delegate_task(
   category="visual",
   skills=["frontend-ui-ux"],
   prompt="Create a responsive dashboard component with..."
@@ -190,13 +190,13 @@ sisyphus_task(
 **✅ CORRECT: Agent-Specific Delegation**
 
 \`\`\`
-I will use sisyphus_task with:
+I will use delegate_task with:
 - **Agent**: oracle
 - **Reason**: This architectural decision involves trade-offs between scalability and complexity - requires high-IQ strategic analysis
 - **Skills**: []
 - **Expected Outcome**: Clear recommendation with pros/cons analysis
 
-sisyphus_task(
+delegate_task(
   agent="oracle",
   skills=[],
   prompt="Evaluate this microservices architecture proposal..."
@@ -206,13 +206,13 @@ sisyphus_task(
 **✅ CORRECT: Background Exploration**
 
 \`\`\`
-I will use sisyphus_task with:
-- **Agent**: explorer
+I will use delegate_task with:
+- **Agent**: explore
 - **Reason**: Need to find all authentication implementations across the codebase - this is contextual grep
 - **Skills**: []
 - **Expected Outcome**: List of files containing auth patterns
 
-sisyphus_task(
+delegate_task(
   agent="explorer",
   background=true,
   prompt="Find all authentication implementations in the codebase"
@@ -223,7 +223,7 @@ sisyphus_task(
 
 \`\`\`
 // Immediately calling without explicit reasoning
-sisyphus_task(category="visual", prompt="Build a dashboard")
+delegate_task(category="visual", prompt="Build a dashboard")
 \`\`\`
 
 **❌ WRONG: Vague Reasoning**
@@ -231,12 +231,12 @@ sisyphus_task(category="visual", prompt="Build a dashboard")
 \`\`\`
 I'll use visual category because it's frontend work.
 
-sisyphus_task(category="visual", ...)
+delegate_task(category="visual", ...)
 \`\`\`
 
 #### Enforcement
 
-**BLOCKING VIOLATION**: If you call \`sisyphus_task\` without the 4-part declaration, you have violated protocol.
+**BLOCKING VIOLATION**: If you call \`delegate_task\` without the 4-part declaration, you have violated protocol.
 
 **Recovery**: Stop, declare explicitly, then proceed.`
 
@@ -247,11 +247,11 @@ const SISYPHUS_PARALLEL_EXECUTION = `### Parallel Execution (DEFAULT behavior)
 \`\`\`typescript
 // CORRECT: Always background, always parallel
 // Contextual Grep (internal)
-sisyphus_task(agent="explorer", prompt="Find auth implementations in our codebase...")
-sisyphus_task(agent="explorer", prompt="Find error handling patterns here...")
+delegate_task(agent="explorer", prompt="Find auth implementations in our codebase...")
+delegate_task(agent="explorer", prompt="Find error handling patterns here...")
 // Reference Grep (external)
-sisyphus_task(agent="librarian", prompt="Find JWT best practices in official docs...")
-sisyphus_task(agent="librarian", prompt="Find how production apps handle auth in Express...")
+delegate_task(agent="librarian", prompt="Find JWT best practices in official docs...")
+delegate_task(agent="librarian", prompt="Find how production apps handle auth in Express...")
 // Continue working immediately. Collect with background_output when needed.
 
 // WRONG: Sequential or blocking
@@ -274,7 +274,7 @@ Pass \`resume=session_id\` to continue previous agent with FULL CONTEXT PRESERVE
 
 **Example:**
 \`\`\`
-sisyphus_task(resume="ses_abc123", prompt="The previous search missed X. Also look for Y.")
+delegate_task(resume="ses_abc123", prompt="The previous search missed X. Also look for Y.")
 \`\`\`
 
 ### Search Stop Conditions
@@ -618,19 +618,16 @@ export function createSisyphusAgent(
     ? buildDynamicSisyphusPrompt(availableAgents, tools, skills)
     : buildDynamicSisyphusPrompt([], tools, skills)
 
-  // Note: question permission allows agent to ask user questions via OpenCode's QuestionTool
-  // SDK type doesn't include 'question' yet, but OpenCode runtime supports it
-  const permission = { question: "allow" } as AgentConfig["permission"]
+  const permission = { question: "allow", call_omo_agent: "deny" } as AgentConfig["permission"]
   const base = {
     description:
-      "Sisyphus - Powerful AI orchestrator from OhMyOpenCode. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically to specialized agents. Uses explorer for internal code (parallel-friendly), librarian only for external docs, and always delegates UI work to frontend engineer.",
+      "Sisyphus - Powerful AI orchestrator from OhMyOpenCode. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically to specialized agents. Uses explore for internal code (parallel-friendly), librarian only for external docs, and always delegates UI work to frontend engineer.",
     mode: "primary" as const,
     model,
     maxTokens: 64000,
     prompt,
     color: "#00CED1",
     permission,
-    tools: { call_omo_agent: false },
   }
 
   if (isGptModel(model)) {

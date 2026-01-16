@@ -28,8 +28,29 @@
 
 > 这是开挂级别的编程——`oh-my-opencode` 实战效果。运行后台智能体，调用专业智能体如 oracle、librarian 和前端工程师。使用精心设计的 LSP/AST 工具、精选的 MCP，以及完整的 Claude Code 兼容层。
 
+# Claude OAuth 访问通知
 
-**注意：请勿为 librarian 使用昂贵的模型。这不仅对你没有帮助，还会增加 LLM 服务商的负担。请使用 Claude Haiku、Gemini Flash、GLM 4.7 或 MiniMax 等模型。**
+## TL;DR
+
+> Q. 我可以使用 oh-my-opencode 吗？
+
+可以。
+
+> Q. 我可以用 Claude Code 订阅来使用它吗？
+
+是的，技术上可以。但我不建议使用。
+
+## 详细说明
+
+> 自2026年1月起，Anthropic 以违反服务条款为由限制了第三方 OAuth 访问。
+>
+> [**Anthropic 将本项目 oh-my-opencode 作为封锁 opencode 的理由。**](https://x.com/thdxr/status/2010149530486911014)
+>
+> 事实上，社区中确实存在一些伪造 Claude Code OAuth 请求签名的插件。
+>
+> 无论技术上是否可检测，这些工具可能都能正常工作，但用户应注意服务条款的相关影响，我个人不建议使用这些工具。
+>
+> 本项目对使用非官方工具产生的任何问题概不负责，**我们没有任何这些 OAuth 系统的自定义实现。**
 
 
 <div align="center">
@@ -93,8 +114,7 @@
       - [Google Gemini (Antigravity OAuth)](#google-gemini-antigravity-oauth)
         - [模型配置](#模型配置)
         - [oh-my-opencode 智能体模型覆盖](#oh-my-opencode-智能体模型覆盖)
-      - [OpenAI (ChatGPT Plus/Pro)](#openai-chatgpt-pluspro)
-        - [模型配置](#模型配置-1)
+
     - [⚠️ 警告](#️-警告)
     - [验证安装](#验证安装)
     - [向用户说 '恭喜！🎉'](#向用户说-恭喜)
@@ -231,6 +251,11 @@
 
 
 ### 面向人类用户
+
+> **⚠️ 先决条件：需要安装 Bun**
+>
+> 此工具**需要系统中已安装 [Bun](https://bun.sh/)** 才能运行。
+> 即使使用 `npx` 运行安装程序，底层运行时仍依赖于 Bun。
 
 运行交互式安装程序：
 
@@ -380,37 +405,46 @@ opencode auth login
 
 **多账号负载均衡**：该插件支持最多 10 个 Google 账号。当一个账号达到速率限制时，它会自动切换到下一个可用账号。
 
-#### OpenAI (ChatGPT Plus/Pro)
+#### GitHub Copilot（备用提供商）
 
-首先，添加 opencode-openai-codex-auth 插件：
+GitHub Copilot 作为**备用提供商**受支持，当原生提供商（Claude、ChatGPT、Gemini）不可用时使用。安装程序将 Copilot 配置为低于原生提供商的优先级。
 
-```json
-{
-  "plugin": [
-    "oh-my-opencode",
-    "opencode-openai-codex-auth@4.3.0"
-  ]
-}
+**优先级**：原生提供商 (Claude/ChatGPT/Gemini) > GitHub Copilot > 免费模型
+
+##### 模型映射
+
+启用 GitHub Copilot 后，oh-my-opencode 使用以下模型分配：
+
+| 代理 | 模型 |
+|------|------|
+| **Sisyphus** | `github-copilot/claude-opus-4.5` |
+| **Oracle** | `github-copilot/gpt-5.2` |
+| **Explore** | `grok code`（默认） |
+| **Librarian** | `glm 4.7 free`（默认） |
+
+GitHub Copilot 作为代理提供商，根据你的订阅将请求路由到底层模型。
+
+##### 设置
+
+运行安装程序并为 GitHub Copilot 选择"是"：
+
+```bash
+bunx oh-my-opencode install
+# 选择你的订阅（Claude、ChatGPT、Gemini）
+# 出现提示时："Do you have a GitHub Copilot subscription?" → 选择"是"
 ```
 
-##### 模型配置
+或使用非交互模式：
 
-你还需要在 `opencode.json` 中配置完整的模型设置。
-阅读 [opencode-openai-codex-auth 文档](https://github.com/numman-ali/opencode-openai-codex-auth)，从 [`config/opencode-modern.json`](https://github.com/numman-ali/opencode-openai-codex-auth/blob/main/config/opencode-modern.json)（适用于 OpenCode v1.0.210+）或 [`config/opencode-legacy.json`](https://github.com/numman-ali/opencode-openai-codex-auth/blob/main/config/opencode-legacy.json)（适用于旧版本）复制 provider/models 配置，并仔细合并以避免破坏用户现有的设置。
+```bash
+bunx oh-my-opencode install --no-tui --claude=no --chatgpt=no --gemini=no --copilot=yes
+```
 
-**可用模型**：`openai/gpt-5.2`、`openai/gpt-5.2-codex`、`openai/gpt-5.1-codex-max`、`openai/gpt-5.1-codex`、`openai/gpt-5.1-codex-mini`、`openai/gpt-5.1`
-
-**变体**（OpenCode v1.0.210+）：使用 `--variant=<none|low|medium|high|xhigh>` 控制推理力度。
-
-然后进行认证：
+然后使用 GitHub 进行身份验证：
 
 ```bash
 opencode auth login
-# 交互式终端：Provider：选择 OpenAI
-# 交互式终端：Login method：选择 ChatGPT Plus/Pro (Codex Subscription)
-# 交互式终端：引导用户在浏览器中完成 OAuth 流程
-# 等待完成
-# 验证成功并向用户确认
+# 选择：GitHub → 通过 OAuth 进行身份验证
 ```
 
 
@@ -540,21 +574,13 @@ gh repo star code-yeongyu/oh-my-opencode
 你编辑器中的功能？其他智能体无法触及。
 把你最好的工具交给你最好的同事。现在它们可以正确地重构、导航和分析。
 
-- **lsp_hover**：位置处的类型信息、文档、签名
-- **lsp_goto_definition**：跳转到符号定义
-- **lsp_find_references**：查找工作区中的所有使用
-- **lsp_document_symbols**：获取文件符号概览
-- **lsp_workspace_symbols**：按名称在项目中搜索符号
 - **lsp_diagnostics**：在构建前获取错误/警告
-- **lsp_servers**：列出可用的 LSP 服务器
 - **lsp_prepare_rename**：验证重命名操作
 - **lsp_rename**：在工作区中重命名符号
-- **lsp_code_actions**：获取可用的快速修复/重构
-- **lsp_code_action_resolve**：应用代码操作
 - **ast_grep_search**：AST 感知的代码模式搜索（25 种语言）
 - **ast_grep_replace**：AST 感知的代码替换
 - **call_omo_agent**：生成专业的 explore/librarian 智能体。支持 `run_in_background` 参数进行异步执行。
-- **sisyphus_task**：基于类别的任务委派，使用专业智能体。支持预配置的类别（visual、business-logic）或直接指定智能体。使用 `background_output` 检索结果，使用 `background_cancel` 取消任务。参见[类别](#类别)。
+- **delegate_task**：基于类别的任务委派，使用专业智能体。支持预配置的类别（visual、business-logic）或直接指定智能体。使用 `background_output` 检索结果，使用 `background_cancel` 取消任务。参见[类别](#类别)。
 
 #### 会话管理
 
@@ -905,7 +931,7 @@ Oh My OpenCode 从以下位置读取和执行钩子：
 Oh My OpenCode 包含提供额外功能的内置技能：
 
 - **playwright**：使用 Playwright MCP 进行浏览器自动化。用于网页抓取、测试、截图和浏览器交互。
-- **git-master**：Git 专家，用于原子提交、rebase/squash 和历史搜索（blame、bisect、log -S）。**强烈推荐**：与 `sisyphus_task(category='quick', skills=['git-master'], ...)` 一起使用以节省上下文。
+- **git-master**：Git 专家，用于原子提交、rebase/squash 和历史搜索（blame、bisect、log -S）。**强烈推荐**：与 `delegate_task(category='quick', skills=['git-master'], ...)` 一起使用以节省上下文。
 
 通过 `~/.config/opencode/oh-my-opencode.json` 或 `.opencode/oh-my-opencode.json` 中的 `disabled_skills` 禁用内置技能：
 
@@ -1044,7 +1070,7 @@ Oh My OpenCode 包含提供额外功能的内置技能：
 
 ### 类别
 
-类别通过 `sisyphus_task` 工具实现领域特定的任务委派。每个类别预配置一个专业的 `Sisyphus-Junior-{category}` 智能体，带有优化的模型设置和提示。
+类别通过 `delegate_task` 工具实现领域特定的任务委派。每个类别预配置一个专业的 `Sisyphus-Junior-{category}` 智能体，带有优化的模型设置和提示。
 
 **默认类别：**
 
@@ -1056,12 +1082,12 @@ Oh My OpenCode 包含提供额外功能的内置技能：
 **使用方法：**
 
 ```
-// 通过 sisyphus_task 工具
-sisyphus_task(category="visual", prompt="创建一个响应式仪表板组件")
-sisyphus_task(category="business-logic", prompt="设计支付处理流程")
+// 通过 delegate_task 工具
+delegate_task(category="visual", prompt="创建一个响应式仪表板组件")
+delegate_task(category="business-logic", prompt="设计支付处理流程")
 
 // 或直接指定特定智能体
-sisyphus_task(agent="oracle", prompt="审查这个架构")
+delegate_task(agent="oracle", prompt="审查这个架构")
 ```
 
 **自定义类别：**
@@ -1148,7 +1174,6 @@ Oh My OpenCode 添加了重构工具（重命名、代码操作）。
 ```json
 {
   "experimental": {
-    "preemptive_compaction_threshold": 0.85,
     "truncate_all_tool_outputs": true,
     "aggressive_truncation": true,
     "auto_resume": true
@@ -1156,13 +1181,11 @@ Oh My OpenCode 添加了重构工具（重命名、代码操作）。
 }
 ```
 
-| 选项                              | 默认    | 描述                                                                                                                                                                                          |
-| --------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `preemptive_compaction_threshold` | `0.85`  | 触发预防性压缩的阈值百分比（0.5-0.95）。`preemptive-compaction` 钩子默认启用；此选项自定义阈值。                                                                                              |
-| `truncate_all_tool_outputs`       | `false` | 截断所有工具输出而不仅仅是白名单工具（Grep、Glob、LSP、AST-grep）。工具输出截断器默认启用——通过 `disabled_hooks` 禁用。                                                                       |
-| `aggressive_truncation`           | `false` | 当超过 token 限制时，积极截断工具输出以适应限制。比默认截断行为更激进。如果不足以满足，则回退到总结/恢复。                                                                                    |
-| `auto_resume`                     | `false` | 从思考块错误或禁用思考违规成功恢复后自动恢复会话。提取最后一条用户消息并继续。                                                                                                                |
-| `dcp_for_compaction`              | `false` | 为压缩启用 DCP（动态上下文修剪）——当超过 token 限制时首先运行。在运行压缩之前修剪重复的工具调用和旧的工具输出。                                                                               |
+| 选项                        | 默认    | 描述                                                                                                                                                       |
+| --------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `truncate_all_tool_outputs` | `false` | 截断所有工具输出而不仅仅是白名单工具（Grep、Glob、LSP、AST-grep）。工具输出截断器默认启用——通过 `disabled_hooks` 禁用。                                    |
+| `aggressive_truncation`     | `false` | 当超过 token 限制时，积极截断工具输出以适应限制。比默认截断行为更激进。如果不足以满足，则回退到总结/恢复。                                                 |
+| `auto_resume`               | `false` | 从思考块错误或禁用思考违规成功恢复后自动恢复会话。提取最后一条用户消息并继续。                                                                             |
 
 **警告**：这些功能是实验性的，可能导致意外行为。只有在理解其影响后才启用。
 

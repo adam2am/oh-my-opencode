@@ -1,45 +1,43 @@
 # AGENTS KNOWLEDGE BASE
 
 ## OVERVIEW
-
-AI agent definitions for multi-model orchestration. 7 specialized agents: Sisyphus (orchestrator), oracle (read-only consultation), librarian (research), explorer (grep), frontend-ui-ux-engineer, document-writer, multimodal-looker.
+AI agent definitions for multi-model orchestration, delegating tasks to specialized experts.
 
 ## STRUCTURE
 ```
 agents/
-├── orchestrator-sisyphus.ts # Orchestrator agent (1486 lines) - 7-section delegation, wisdom
+├── orchestrator-sisyphus.ts # Orchestrator agent (1485 lines) - 7-section delegation, wisdom
 ├── sisyphus.ts              # Main Sisyphus prompt (643 lines)
 ├── sisyphus-junior.ts       # Junior variant for delegated tasks
 ├── oracle.ts                # Strategic advisor (GPT-5.2)
 ├── librarian.ts             # Multi-repo research (GLM-4.7-free)
-├── explorer.ts              # Fast codebase grep (Grok Code)
-├── frontend-ui-ux-engineer.ts  # UI generation (Gemini 3 Pro)
-├── document-writer.ts       # Technical docs (Gemini 3 Pro)
+├── explorer.ts               # Fast codebase grep (Grok Code)
+├── frontend-ui-ux-engineer.ts  # UI generation (Gemini 3 Pro Preview)
+├── document-writer.ts       # Technical docs (Gemini 3 Pro Preview)
 ├── multimodal-looker.ts     # PDF/image analysis (Gemini 3 Flash)
-├── prometheus-prompt.ts     # Planning agent prompt (988 lines) - interview mode
+├── prometheus-prompt.ts     # Planning agent prompt (991 lines) - interview mode
 ├── metis.ts                 # Plan Consultant agent - pre-planning analysis
 ├── momus.ts                 # Plan Reviewer agent - plan validation
 ├── build-prompt.ts          # Shared build agent prompt
 ├── plan-prompt.ts           # Shared plan agent prompt
+├── sisyphus-prompt-builder.ts # Factory for orchestrator prompts
 ├── types.ts                 # AgentModelConfig interface
 ├── utils.ts                 # createBuiltinAgents(), getAgentName()
 └── index.ts                 # builtinAgents export
 ```
 
 ## AGENT MODELS
-
-| Agent | Default Model | Fallback | Purpose |
-|-------|---------------|----------|---------|
-| Sisyphus | anthropic/claude-opus-4-5 | - | Primary orchestrator with extended thinking |
-| oracle | openai/gpt-5.2 | - | Read-only consultation. High-IQ debugging, architecture |
-| librarian | opencode/glm-4.7-free | - | Docs, OSS research, GitHub examples |
-| explorer | opencode/grok-code | google/gemini-3-flash, anthropic/claude-haiku-4-5 | Fast contextual grep |
-| frontend-ui-ux-engineer | google/gemini-3-pro-preview | - | UI/UX code generation |
-| document-writer | google/gemini-3-pro-preview | - | Technical writing |
-| multimodal-looker | google/gemini-3-flash | - | PDF/image analysis |
-| Prometheus | claude-opus-4-5 | - | Strategic planner. Interview mode, orchestrates Metis/Momus |
-| Metis | claude-sonnet-4-5 | - | Plan Consultant. Pre-planning risk/requirement analysis |
-| Momus | claude-sonnet-4-5 | - | Plan Reviewer. Validation and quality enforcement |
+| Agent | Default Model | Purpose |
+|-------|---------------|---------|
+| Sisyphus | anthropic/claude-opus-4-5 | Primary orchestrator. 32k extended thinking budget. |
+| oracle | openai/gpt-5.2 | High-IQ debugging, architecture, strategic consultation. |
+| librarian | opencode/glm-4.7-free | Multi-repo analysis, docs research, GitHub examples. |
+| explore | opencode/grok-code | Fast contextual grep. Fallbacks: Gemini-3-Flash, Haiku-4-5. |
+| frontend-ui-ux | google/gemini-3-pro-preview | Production-grade UI/UX generation and styling. |
+| document-writer | google/gemini-3-pro-preview | Technical writing, guides, API documentation. |
+| Prometheus | anthropic/claude-opus-4-5 | Strategic planner. Interview mode, orchestrates Metis/Momus. |
+| Metis | anthropic/claude-sonnet-4-5 | Plan Consultant. Pre-planning risk/requirement analysis. |
+| Momus | anthropic/claude-sonnet-4-5 | Plan Reviewer. Validation and quality enforcement. |
 
 ## HOW TO ADD AN AGENT
 1. Create `src/agents/my-agent.ts` exporting `AgentConfig`.
@@ -52,19 +50,10 @@ agents/
 2. Environment-specific settings (max20, antigravity).
 3. Hardcoded defaults in `index.ts`.
 
-**Fallback order for explorer**:
-- If gemini antigravity enabled → `google/gemini-3-flash`
-- If claude max20 enabled → `anthropic/claude-haiku-4-5`
-- Default → `opencode/grok-code` (free)
-
-## ANTI-PATTERNS (AGENTS)
-
+## ANTI-PATTERNS
 - **Trusting reports**: NEVER trust subagent self-reports; always verify outputs.
-- **High temperature**: Don't use >0.3 for code-related agents
-- **Broad tool access**: Prefer explicit `include` over unrestricted access
-- **Monolithic prompts**: Keep prompts focused; delegate to specialized agents
-- **Missing fallbacks**: Consider free/cheap fallbacks for rate-limited models
-- **Sequential calls**: Prefer `sisyphus_task` with `run_in_background` for parallelism
+- **High temp**: Don't use >0.3 for code agents (Sisyphus/Prometheus use 0.1).
+- **Sequential calls**: Prefer `delegate_task` with `run_in_background` for parallelism.
 
 ## SHARED PROMPTS
 - **build-prompt.ts**: Unified base for Sisyphus and Builder variants.

@@ -12,7 +12,7 @@ import {
   createThinkModeHook,
   createClaudeCodeHooksHook,
   createAnthropicContextWindowLimitRecoveryHook,
-  createPreemptiveCompactionHook,
+
   createCompactionContextInjector,
   createRulesInjectorHook,
   createBackgroundNotificationHook,
@@ -26,6 +26,7 @@ import {
   createRalphLoopHook,
   createAutoSlashCommandHook,
   createEditErrorRecoveryHook,
+  createDelegateTaskRetryHook,
   createTaskResumeInfoHook,
   createStartWorkHook,
   createSisyphusOrchestratorHook,
@@ -33,7 +34,6 @@ import {
 } from "./hooks";
 import {
   contextCollector,
-  createContextInjectorHook,
   createContextInjectorMessagesTransformHook,
 } from "./features/context-injector";
 import { applyAgentVariant, resolveAgentVariant } from "./shared/agent-variant";
@@ -51,6 +51,7 @@ import {
   setMainSession,
   getMainSessionID,
   setSessionAgent,
+  updateSessionAgent,
   clearSessionAgent,
 } from "./features/claude-code-session-state";
 import {
@@ -63,7 +64,7 @@ import {
   createSlashcommandTool,
   discoverCommandsSync,
   sessionExists,
-  createSisyphusTask,
+  createDelegateTask,
   interactive_bash,
   startTmuxCheck,
   lspManager,
@@ -72,7 +73,7 @@ import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { initTaskToastManager } from "./features/task-toast-manager";
 import { type HookName } from "./config";
-import { log, detectExternalNotificationPlugin, getNotificationConflictWarning } from "./shared";
+import { log, detectExternalNotificationPlugin, getNotificationConflictWarning, resetMessageCursor } from "./shared";
 import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
@@ -144,20 +145,11 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   )
     ? createAnthropicContextWindowLimitRecoveryHook(ctx, {
         experimental: pluginConfig.experimental,
-        dcpForCompaction: pluginConfig.experimental?.dcp_for_compaction,
       })
     : null;
   const compactionContextInjector = isHookEnabled("compaction-context-injector")
     ? createCompactionContextInjector()
     : undefined;
-  const preemptiveCompaction = isHookEnabled("preemptive-compaction")
-    ? createPreemptiveCompactionHook(ctx, {
-        experimental: pluginConfig.experimental,
-        onBeforeSummarize: compactionContextInjector,
-        getModelLimit: (providerID, modelID) =>
-          getModelLimit(modelCacheState, providerID, modelID),
-      })
-    : null;
   const rulesInjector = isHookEnabled("rules-injector")
     ? createRulesInjectorHook(ctx)
     : null;
@@ -171,7 +163,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const keywordDetector = isHookEnabled("keyword-detector")
     ? createKeywordDetectorHook(ctx, contextCollector)
     : null;
-  const contextInjector = createContextInjectorHook(contextCollector);
   const contextInjectorMessagesTransform =
     createContextInjectorMessagesTransformHook(contextCollector);
   const agentUsageReminder = isHookEnabled("agent-usage-reminder")
@@ -199,6 +190,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const editErrorRecovery = isHookEnabled("edit-error-recovery")
     ? createEditErrorRecoveryHook(ctx)
+    : null;
+
+  const delegateTaskRetry = isHookEnabled("delegate-task-retry")
+    ? createDelegateTaskRetryHook(ctx)
     : null;
 
   const startWork = isHookEnabled("start-work")
@@ -237,7 +232,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const callOmoAgent = createCallOmoAgent(ctx, backgroundManager);
   const lookAt = createLookAt(ctx);
-  const sisyphusTask = createSisyphusTask({
+  const delegateTask = createDelegateTask({
     manager: backgroundManager,
     client: ctx.client,
     directory: ctx.directory,
@@ -276,6 +271,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     skills: mergedSkills,
     mcpManager: skillMcpManager,
     getSessionID: getSessionIDForMcp,
+    gitMasterConfig: pluginConfig.git_master,
   });
   const skillMcpTool = createSkillMcpTool({
     manager: skillMcpManager,
@@ -305,7 +301,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       ...backgroundTools,
       call_omo_agent: callOmoAgent,
       look_at: lookAt,
-      sisyphus_task: sisyphusTask,
+      delegate_task: delegateTask,
       skill: skillTool,
       skill_mcp: skillMcpTool,
       slashcommand: slashcommandTool,
@@ -313,6 +309,10 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     },
 
     "chat.message": async (input, output) => {
+      if (input.agent) {
+        updateSessionAgent(input.sessionID, input.agent);
+      }
+
       const message = (output as { message: { variant?: string } }).message
       if (firstMessageVariantGate.shouldOverride(input.sessionID)) {
         const variant = resolveAgentVariant(pluginConfig, input.agent)
@@ -326,7 +326,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
       await keywordDetector?.["chat.message"]?.(input, output);
       await claudeCodeHooks["chat.message"]?.(input, output);
-      await contextInjector["chat.message"]?.(input, output);
       await autoSlashCommand?.["chat.message"]?.(input, output);
       await startWork?.["chat.message"]?.(input, output);
 
@@ -414,7 +413,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await rulesInjector?.event(input);
       await thinkMode?.event(input);
       await anthropicContextWindowLimitRecovery?.event(input);
-      await preemptiveCompaction?.event(input);
       await agentUsageReminder?.event(input);
       await interactiveBashSession?.event(input);
       await ralphLoop?.event(input);
@@ -440,6 +438,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         }
         if (sessionInfo?.id) {
           clearSessionAgent(sessionInfo.id);
+          resetMessageCursor(sessionInfo.id);
           firstMessageVariantGate.clear(sessionInfo.id);
           await skillMcpManager.disconnectSession(sessionInfo.id);
           await lspManager.cleanupTempDirectoryClients();
@@ -452,7 +451,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         const agent = info?.agent as string | undefined;
         const role = info?.role as string | undefined;
         if (sessionID && agent && role === "user") {
-          setSessionAgent(sessionID, agent);
+          updateSessionAgent(sessionID, agent);
         }
       }
 
@@ -501,7 +500,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
         args.tools = {
           ...(args.tools as Record<string, boolean> | undefined),
-          sisyphus_task: false,
+          delegate_task: false,
           ...(isExploreOrLibrarian ? { call_omo_agent: false } : {}),
         };
       }
@@ -548,8 +547,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await emptyTaskResponseDetector?.["tool.execute.after"](input, output);
       await agentUsageReminder?.["tool.execute.after"](input, output);
       await interactiveBashSession?.["tool.execute.after"](input, output);
-      await editErrorRecovery?.["tool.execute.after"](input, output);
-      await sisyphusOrchestrator?.["tool.execute.after"]?.(input, output);
+await editErrorRecovery?.["tool.execute.after"](input, output);
+        await delegateTaskRetry?.["tool.execute.after"](input, output);
+        await sisyphusOrchestrator?.["tool.execute.after"]?.(input, output);
       await taskResumeInfo["tool.execute.after"](input, output);
     },
   };

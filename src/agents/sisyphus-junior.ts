@@ -3,7 +3,7 @@ import { isGptModel } from "./types"
 import type { AgentOverrideConfig, CategoryConfig } from "../config/schema"
 import {
   createAgentToolRestrictions,
-  migrateAgentConfig,
+  type PermissionValue,
 } from "../shared/permission-compat"
 
 const SISYPHUS_JUNIOR_PROMPT = `<Role>
@@ -14,9 +14,9 @@ Execute tasks directly. NEVER delegate or spawn other agents.
 <Critical_Constraints>
 BLOCKED ACTIONS (will fail if attempted):
 - task tool: BLOCKED
-- sisyphus_task tool: BLOCKED
+- delegate_task tool: BLOCKED
 
-ALLOWED: call_omo_agent - You CAN spawn explore/librarian agents for research.
+ALLOWED: call_omo_agent - You CAN spawn explorer/librarian agents for research.
 You work ALONE for implementation. No delegation of implementation tasks.
 </Critical_Constraints>
 
@@ -74,8 +74,8 @@ function buildSisyphusJuniorPrompt(promptAppend?: string): string {
 }
 
 // Core tools that Sisyphus-Junior must NEVER have access to
-// Note: call_omo_agent is ALLOWED so subagents can spawn explore/librarian
-const BLOCKED_TOOLS = ["task", "sisyphus_task"]
+// Note: call_omo_agent is ALLOWED so subagents can spawn explorer/librarian
+const BLOCKED_TOOLS = ["task", "delegate_task"]
 
 export const SISYPHUS_JUNIOR_DEFAULTS = {
   model: "anthropic/claude-sonnet-4-5",
@@ -83,13 +83,14 @@ export const SISYPHUS_JUNIOR_DEFAULTS = {
 } as const
 
 export function createSisyphusJuniorAgentWithOverrides(
-  override: AgentOverrideConfig | undefined
+  override: AgentOverrideConfig | undefined,
+  systemDefaultModel?: string
 ): AgentConfig {
   if (override?.disable) {
     override = undefined
   }
 
-  const model = override?.model ?? SISYPHUS_JUNIOR_DEFAULTS.model
+  const model = override?.model ?? systemDefaultModel ?? SISYPHUS_JUNIOR_DEFAULTS.model
   const temperature = override?.temperature ?? SISYPHUS_JUNIOR_DEFAULTS.temperature
 
   const promptAppend = override?.prompt_append
@@ -97,15 +98,14 @@ export function createSisyphusJuniorAgentWithOverrides(
 
   const baseRestrictions = createAgentToolRestrictions(BLOCKED_TOOLS)
 
-  // Always use tools format for subagents - OpenCode's task.ts only reads agent.tools
-  const userTools = override?.tools ?? {}
-  const baseTools = baseRestrictions.tools
-  const merged: Record<string, boolean> = { ...userTools }
+  const userPermission = (override?.permission ?? {}) as Record<string, PermissionValue>
+  const basePermission = baseRestrictions.permission
+  const merged: Record<string, PermissionValue> = { ...userPermission }
   for (const tool of BLOCKED_TOOLS) {
-    merged[tool] = false
+    merged[tool] = "deny"
   }
-  merged.call_omo_agent = true
-  const toolsConfig = { tools: { ...merged, ...baseTools } }
+  merged.call_omo_agent = "allow"
+  const toolsConfig = { permission: { ...merged, ...basePermission } }
 
   const base: AgentConfig = {
     description: override?.description ??
@@ -140,10 +140,18 @@ export function createSisyphusJuniorAgent(
   const prompt = buildSisyphusJuniorPrompt(promptAppend)
   const model = categoryConfig.model
   const baseRestrictions = createAgentToolRestrictions(BLOCKED_TOOLS)
-  const mergedConfig = migrateAgentConfig({
-    ...baseRestrictions,
-    ...(categoryConfig.tools ? { tools: categoryConfig.tools } : {}),
-  })
+  const categoryPermission = categoryConfig.tools
+    ? Object.fromEntries(
+        Object.entries(categoryConfig.tools).map(([k, v]) => [
+          k,
+          v ? ("allow" as const) : ("deny" as const),
+        ])
+      )
+    : {}
+  const mergedPermission = {
+    ...categoryPermission,
+    ...baseRestrictions.permission,
+  }
 
 
   const base: AgentConfig = {
@@ -154,7 +162,7 @@ export function createSisyphusJuniorAgent(
     maxTokens: categoryConfig.maxTokens ?? 64000,
     prompt,
     color: "#20B2AA",
-    ...mergedConfig,
+    permission: mergedPermission,
   }
 
   if (categoryConfig.temperature !== undefined) {

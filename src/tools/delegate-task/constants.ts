@@ -236,7 +236,7 @@ export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
 
 const BUILTIN_CATEGORIES = Object.keys(DEFAULT_CATEGORIES).join(", ")
 
-export const SISYPHUS_TASK_DESCRIPTION = `Spawn agent task with category-based or direct agent selection.
+export const DELEGATE_TASK_DESCRIPTION = `Spawn agent task with category-based or direct agent selection.
 
 MUTUALLY EXCLUSIVE: Provide EITHER category OR agent, not both (unless resuming).
 
@@ -244,7 +244,7 @@ MUTUALLY EXCLUSIVE: Provide EITHER category OR agent, not both (unless resuming)
 - agent: Use specific agent directly (e.g., "oracle", "explorer")
 - background: true=async (returns task_id), false=sync (waits for result). Default: false. Use background=true ONLY for parallel exploration with 5+ independent queries.
 - resume: Session ID to resume (from previous task output). Continues agent with FULL CONTEXT PRESERVED - saves tokens, maintains continuity.
-- skills: Array of skill names to prepend to prompt (e.g., ["playwright", "frontend-ui-ux"]). Skills will be resolved and their content prepended with a separator. Empty array = no prepending.
+- skills: Array of skill names to prepend to prompt (e.g., ["playwright", "frontend-ui-ux"]). Skills will be resolved and their content prepended with a separator. Empty array [] is NOT allowed - use null if no skills needed.
 
 **WHEN TO USE resume:**
 - Task failed/incomplete → resume with "fix: [specific issue]"

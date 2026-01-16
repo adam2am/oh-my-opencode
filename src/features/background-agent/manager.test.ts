@@ -1,5 +1,11 @@
 import { describe, test, expect, beforeEach } from "bun:test"
+import { afterEach } from "bun:test"
+import { tmpdir } from "node:os"
+import type { PluginInput } from "@opencode-ai/plugin"
 import type { BackgroundTask, ResumeInput } from "./types"
+import { BackgroundManager } from "./manager"
+import { ConcurrencyManager } from "./concurrency"
+
 
 const TASK_TTL_MS = 30 * 60 * 1000
 
@@ -122,6 +128,10 @@ class MockBackgroundManager {
       throw new Error(`Task not found for session: ${input.sessionId}`)
     }
 
+    if (existingTask.status === "running") {
+      return existingTask
+    }
+
     this.resumeCalls.push({ sessionId: input.sessionId, prompt: input.prompt })
 
     existingTask.status = "running"
@@ -151,6 +161,44 @@ function createMockTask(overrides: Partial<BackgroundTask> & { id: string; sessi
     ...overrides,
   }
 }
+
+function createBackgroundManager(): BackgroundManager {
+  const client = {
+    session: {
+      prompt: async () => ({}),
+    },
+  }
+  return new BackgroundManager({ client, directory: tmpdir() } as unknown as PluginInput)
+}
+
+function getConcurrencyManager(manager: BackgroundManager): ConcurrencyManager {
+  return (manager as unknown as { concurrencyManager: ConcurrencyManager }).concurrencyManager
+}
+
+function getTaskMap(manager: BackgroundManager): Map<string, BackgroundTask> {
+  return (manager as unknown as { tasks: Map<string, BackgroundTask> }).tasks
+}
+
+function stubNotifyParentSession(manager: BackgroundManager): void {
+  (manager as unknown as { notifyParentSession: (task: BackgroundTask) => Promise<void> }).notifyParentSession = async () => {}
+}
+
+async function tryCompleteTaskForTest(manager: BackgroundManager, task: BackgroundTask): Promise<boolean> {
+  return (manager as unknown as { tryCompleteTask: (task: BackgroundTask, source: string) => Promise<boolean> }).tryCompleteTask(task, "test")
+}
+
+function getCleanupSignals(): Array<NodeJS.Signals | "beforeExit" | "exit"> {
+  const signals: Array<NodeJS.Signals | "beforeExit" | "exit"> = ["SIGINT", "SIGTERM", "beforeExit", "exit"]
+  if (process.platform === "win32") {
+    signals.push("SIGBREAK")
+  }
+  return signals
+}
+
+function getListenerCounts(signals: Array<NodeJS.Signals | "beforeExit" | "exit">): Record<string, number> {
+  return Object.fromEntries(signals.map((signal) => [signal, process.listenerCount(signal)]))
+}
+
 
 describe("BackgroundManager.getAllDescendantTasks", () => {
   let manager: MockBackgroundManager
@@ -572,6 +620,7 @@ describe("BackgroundManager.resume", () => {
       parentSessionID: "old-parent",
       description: "original description",
       agent: "explorer",
+      status: "completed",
     })
     manager.addTask(existingTask)
 
@@ -598,6 +647,7 @@ describe("BackgroundManager.resume", () => {
       id: "task-a",
       sessionID: "session-a",
       parentSessionID: "session-parent",
+      status: "completed",
     })
     manager.addTask(task)
 
@@ -623,6 +673,7 @@ describe("BackgroundManager.resume", () => {
       id: "task-a",
       sessionID: "session-a",
       parentSessionID: "session-parent",
+      status: "completed",
     })
     taskWithProgress.progress = {
       toolCalls: 42,
@@ -641,6 +692,29 @@ describe("BackgroundManager.resume", () => {
 
     // #then
     expect(result.progress?.toolCalls).toBe(42)
+  })
+
+  test("should ignore resume when task is already running", () => {
+    // #given
+    const runningTask = createMockTask({
+      id: "task-a",
+      sessionID: "session-a",
+      parentSessionID: "session-parent",
+      status: "running",
+    })
+    manager.addTask(runningTask)
+
+    // #when
+    const result = manager.resume({
+      sessionId: "session-a",
+      prompt: "resume should be ignored",
+      parentSessionID: "new-parent",
+      parentMessageID: "new-msg",
+    })
+
+    // #then
+    expect(result.parentSessionID).toBe("session-parent")
+    expect(manager.resumeCalls).toHaveLength(0)
   })
 })
 
@@ -675,369 +749,314 @@ describe("LaunchInput.skillContent", () => {
   })
 })
 
-describe("BackgroundManager.notifyParentSession - agent context preservation", () => {
-  test("should not pass agent field when parentAgent is undefined", async () => {
-    // #given
+interface CurrentMessage {
+  agent?: string
+  model?: { providerID?: string; modelID?: string }
+}
+
+describe("BackgroundManager.notifyParentSession - dynamic message lookup", () => {
+  test("should use currentMessage model/agent when available", async () => {
+    // #given - currentMessage has model and agent
     const task: BackgroundTask = {
-      id: "task-no-agent",
+      id: "task-1",
       sessionID: "session-child",
       parentSessionID: "session-parent",
       parentMessageID: "msg-parent",
-      description: "task without agent context",
+      description: "task with dynamic lookup",
       prompt: "test",
       agent: "explorer",
       status: "completed",
       startedAt: new Date(),
       completedAt: new Date(),
-      parentAgent: undefined,
-      parentModel: { providerID: "anthropic", modelID: "claude-opus" },
+      parentAgent: "OldAgent",
+      parentModel: { providerID: "old", modelID: "old-model" },
+    }
+    const currentMessage: CurrentMessage = {
+      agent: "Sisyphus",
+      model: { providerID: "anthropic", modelID: "claude-opus-4-5" },
     }
 
     // #when
-    const promptBody = buildNotificationPromptBody(task)
+    const promptBody = buildNotificationPromptBody(task, currentMessage)
 
-    // #then
-    expect("agent" in promptBody).toBe(false)
-    expect(promptBody.model).toEqual({ providerID: "anthropic", modelID: "claude-opus" })
-  })
-
-  test("should include agent field when parentAgent is defined", async () => {
-    // #given
-    const task: BackgroundTask = {
-      id: "task-with-agent",
-      sessionID: "session-child",
-      parentSessionID: "session-parent",
-      parentMessageID: "msg-parent",
-      description: "task with agent context",
-      prompt: "test",
-      agent: "explorer",
-      status: "completed",
-      startedAt: new Date(),
-      completedAt: new Date(),
-      parentAgent: "Sisyphus",
-      parentModel: { providerID: "anthropic", modelID: "claude-opus" },
-    }
-
-    // #when
-    const promptBody = buildNotificationPromptBody(task)
-
-    // #then
+    // #then - uses currentMessage values, not task.parentModel/parentAgent
     expect(promptBody.agent).toBe("Sisyphus")
+    expect(promptBody.model).toEqual({ providerID: "anthropic", modelID: "claude-opus-4-5" })
   })
 
-  test("should not pass model field when parentModel is undefined", async () => {
+  test("should fallback to parentAgent when currentMessage.agent is undefined", async () => {
     // #given
     const task: BackgroundTask = {
-      id: "task-no-model",
+      id: "task-2",
       sessionID: "session-child",
       parentSessionID: "session-parent",
       parentMessageID: "msg-parent",
-      description: "task without model context",
+      description: "task fallback agent",
       prompt: "test",
       agent: "explorer",
       status: "completed",
       startedAt: new Date(),
       completedAt: new Date(),
-      parentAgent: "Sisyphus",
+      parentAgent: "FallbackAgent",
       parentModel: undefined,
     }
+    const currentMessage: CurrentMessage = { agent: undefined, model: undefined }
 
     // #when
-    const promptBody = buildNotificationPromptBody(task)
+    const promptBody = buildNotificationPromptBody(task, currentMessage)
 
-    // #then
+    // #then - falls back to task.parentAgent
+    expect(promptBody.agent).toBe("FallbackAgent")
     expect("model" in promptBody).toBe(false)
-    expect(promptBody.agent).toBe("Sisyphus")
   })
-})
 
-describe("validateSessionHasOutput - fault-tolerant completion detection", () => {
-  /**
-   * Tests for multi-layer fault-tolerant completion detection.
-   * All layers must pass for a task to be marked complete.
-   */
-
-  function validateSessionHasOutput(messages: Array<{
-    info?: { role?: string }
-    parts?: Array<{ 
-      type?: string
-      text?: string
-      state?: { status?: string; output?: string }
-      content?: string | unknown[]
-    }>
-  }>): boolean {
-    // Layer 1: Basic sanity - has assistant/tool messages
-    const assistantMessages = messages.filter(
-      (m) => m.info?.role === "assistant" || m.info?.role === "tool"
-    )
-    if (assistantMessages.length === 0) return false
-
-    // Layer 2: Tool execution guard - no running/pending tools
-    const hasRunningTools = messages.some((m) => {
-      if (m.info?.role !== "assistant") return false
-      const parts = m.parts ?? []
-      return parts.some((p) => 
-        p.type === "tool" && (p.state?.status === "running" || p.state?.status === "pending")
-      )
-    })
-    if (hasRunningTools) return false
-
-    // Layer 3: Output structure - last assistant message should end with "text"
-    const lastAssistantMsg = assistantMessages.filter((m) => m.info?.role === "assistant").pop()
-    if (lastAssistantMsg) {
-      const parts = lastAssistantMsg.parts ?? []
-      if (parts.length > 0) {
-        const lastPart = parts[parts.length - 1]
-        
-        // If last part is reasoning-only, agent is still thinking
-        if (lastPart.type === "reasoning" && !parts.some((p) => p.type === "text")) {
-          return false
-        }
-        
-        // If last part is a tool call, check if there's text after it
-        if (lastPart.type === "tool") {
-          const lastToolIndex = parts.findLastIndex((pt) => pt.type === "tool")
-          const hasTextAfterTools = parts.some((p, i) => p.type === "text" && i > lastToolIndex)
-          if (!hasTextAfterTools) return false
-        }
-      }
+  test("should not pass model when currentMessage.model is incomplete", async () => {
+    // #given - model missing modelID
+    const task: BackgroundTask = {
+      id: "task-3",
+      sessionID: "session-child",
+      parentSessionID: "session-parent",
+      parentMessageID: "msg-parent",
+      description: "task incomplete model",
+      prompt: "test",
+      agent: "explorer",
+      status: "completed",
+      startedAt: new Date(),
+      completedAt: new Date(),
+      parentAgent: "Sisyphus",
+      parentModel: { providerID: "anthropic", modelID: "claude-opus" },
+    }
+    const currentMessage: CurrentMessage = {
+      agent: "Sisyphus",
+      model: { providerID: "anthropic" },
     }
 
-    return true
-  }
-
-  test("should return false when tool is still running", () => {
-    // #given - session with a tool call that is still running
-    const messages = [
-      {
-        info: { role: "assistant" },
-        parts: [
-          { type: "text", text: "Let me search for that information..." },
-          { 
-            type: "tool", 
-            state: { status: "running" }  // Tool is still executing!
-          }
-        ]
-      }
-    ]
-
     // #when
-    const result = validateSessionHasOutput(messages)
+    const promptBody = buildNotificationPromptBody(task, currentMessage)
 
-    // #then - EXPECTED: false (tool not complete), ACTUAL (bug): true
-    // This test will FAIL with current implementation, exposing the bug
-    expect(result).toBe(false)
+    // #then - model not passed due to incomplete data
+    expect(promptBody.agent).toBe("Sisyphus")
+    expect("model" in promptBody).toBe(false)
   })
 
-  test("should return false when tool is pending", () => {
-    // #given - session with a pending tool call
-    const messages = [
-      {
-        info: { role: "assistant" },
-        parts: [
-          { 
-            type: "tool", 
-            state: { status: "pending" }
-          }
-        ]
-      }
-    ]
+  test("should handle null currentMessage gracefully", async () => {
+    // #given - no message found (messageDir lookup failed)
+    const task: BackgroundTask = {
+      id: "task-4",
+      sessionID: "session-child",
+      parentSessionID: "session-parent",
+      parentMessageID: "msg-parent",
+      description: "task no message",
+      prompt: "test",
+      agent: "explorer",
+      status: "completed",
+      startedAt: new Date(),
+      completedAt: new Date(),
+      parentAgent: "Sisyphus",
+      parentModel: { providerID: "anthropic", modelID: "claude-opus" },
+    }
 
     // #when
-    const result = validateSessionHasOutput(messages)
+    const promptBody = buildNotificationPromptBody(task, null)
 
-    // #then - EXPECTED: false (tool not complete)
-    expect(result).toBe(false)
-  })
-
-  test("should return false when tool is completed but no text follows (Layer 3)", () => {
-    // #given - session with a completed tool call but text is BEFORE the tool
-    const messages = [
-      {
-        info: { role: "assistant" },
-        parts: [
-          { type: "text", text: "Here are the results:" },
-          { 
-            type: "tool", 
-            state: { status: "completed", output: "Found 5 facts about cats" }
-          }
-        ]
-      }
-    ]
-
-    // #when
-    const result = validateSessionHasOutput(messages)
-
-    // #then - Layer 3: last part is tool, no text after it = not complete
-    expect(result).toBe(false)
-  })
-
-  test("should return true when tool is completed AND text follows", () => {
-    // #given - session with completed tool AND final text response
-    const messages = [
-      {
-        info: { role: "assistant" },
-        parts: [
-          { type: "text", text: "Let me search..." },
-          { 
-            type: "tool", 
-            state: { status: "completed", output: "Found 5 facts" }
-          },
-          { type: "text", text: "Here are 5 facts about cats:\n1. Cats sleep 16 hours..." }
-        ]
-      }
-    ]
-
-    // #when
-    const result = validateSessionHasOutput(messages)
-
-    // #then - Has text after tool = complete
-    expect(result).toBe(true)
-  })
-
-  test("should return false when tool errored but no text follows (Layer 3)", () => {
-    // #given - session with a tool that errored but no text response after
-    const messages = [
-      {
-        info: { role: "assistant" },
-        parts: [
-          { 
-            type: "tool", 
-            state: { status: "error" }
-          }
-        ]
-      }
-    ]
-
-    // #when
-    const result = validateSessionHasOutput(messages)
-
-    // #then - Layer 3: last part is tool (even errored), no text after = not complete
-    expect(result).toBe(false)
-  })
-
-  test("should return true when tool errored AND text follows with error message", () => {
-    // #given - session with errored tool AND agent's error response
-    const messages = [
-      {
-        info: { role: "assistant" },
-        parts: [
-          { 
-            type: "tool", 
-            state: { status: "error" }
-          },
-          { type: "text", text: "I encountered an error while searching. Let me try a different approach..." }
-        ]
-      }
-    ]
-
-    // #when
-    const result = validateSessionHasOutput(messages)
-
-    // #then - Has text after tool = complete
-    expect(result).toBe(true)
-  })
-
-  test("should return false when only text exists but tool is still running", () => {
-    // #given - session with text AND a running tool
-    const messages = [
-      {
-        info: { role: "assistant" },
-        parts: [
-          { type: "text", text: "I'll search for that now..." },
-          { type: "reasoning", text: "User wants cat facts, I should use web search" },
-          { 
-            type: "tool", 
-            state: { status: "running" }
-          }
-        ]
-      }
-    ]
-
-    // #when
-    const result = validateSessionHasOutput(messages)
-
-    // #then - Even though text exists, tool is running so not complete
-    // This is the key scenario: agent wrote text, called tool, waiting for result
-    expect(result).toBe(false)
-  })
-
-  test("should return false when only reasoning exists without final text (Layer 3)", () => {
-    // #given - session with ONLY reasoning/thinking content, no final text output
-    // This happens when agent is still thinking/planning but hasn't written final answer
-    const messages = [
-      {
-        info: { role: "assistant" },
-        parts: [
-          { 
-            type: "reasoning", 
-            text: "<analysis>\n**Literal Request**: Find 5 interesting facts about cats\n**Actual Need**: General knowledge retrieval\n</analysis>\n\nI'll search for interesting facts about cats..." 
-          }
-        ]
-      }
-    ]
-
-    // #when
-    const result = validateSessionHasOutput(messages)
-
-    // #then - Reasoning alone should NOT count as complete output
-    // Agent is still thinking, hasn't produced final answer yet
-    expect(result).toBe(false)
-  })
-
-  test("should return true when reasoning AND final text exist", () => {
-    // #given - session with both reasoning and final text output
-    const messages = [
-      {
-        info: { role: "assistant" },
-        parts: [
-          { type: "reasoning", text: "User wants cat facts, let me search..." },
-          { type: "text", text: "Here are 5 interesting facts about cats:\n1. Cats sleep 12-16 hours per day\n2. ..." }
-        ]
-      }
-    ]
-
-    // #when
-    const result = validateSessionHasOutput(messages)
-
-    // #then - Has final text output, so complete
-    expect(result).toBe(true)
-  })
-
-  test("should return false when reasoning exists with incomplete tool call", () => {
-    // #given - agent wrote reasoning, called a tool, tool still running
-    // This is the exact scenario that caused truncated output
-    const messages = [
-      {
-        info: { role: "assistant" },
-        parts: [
-          { type: "reasoning", text: "I need to search for cat facts using web search" },
-          { type: "text", text: "Let me search for that..." },
-          { type: "tool", state: { status: "running" } }
-        ]
-      }
-    ]
-
-    // #when
-    const result = validateSessionHasOutput(messages)
-
-    // #then - Tool still running, not complete
-    expect(result).toBe(false)
+    // #then - falls back to task.parentAgent, no model
+    expect(promptBody.agent).toBe("Sisyphus")
+    expect("model" in promptBody).toBe(false)
   })
 })
 
-function buildNotificationPromptBody(task: BackgroundTask): Record<string, unknown> {
+function buildNotificationPromptBody(
+  task: BackgroundTask,
+  currentMessage: CurrentMessage | null
+): Record<string, unknown> {
   const body: Record<string, unknown> = {
     parts: [{ type: "text", text: `[BACKGROUND TASK COMPLETED] Task "${task.description}" finished.` }],
   }
 
-  if (task.parentAgent !== undefined) {
-    body.agent = task.parentAgent
-  }
+  const agent = currentMessage?.agent ?? task.parentAgent
+  const model = currentMessage?.model?.providerID && currentMessage?.model?.modelID
+    ? { providerID: currentMessage.model.providerID, modelID: currentMessage.model.modelID }
+    : undefined
 
-  if (task.parentModel?.providerID && task.parentModel?.modelID) {
-    body.model = { providerID: task.parentModel.providerID, modelID: task.parentModel.modelID }
+  if (agent !== undefined) {
+    body.agent = agent
+  }
+  if (model !== undefined) {
+    body.model = model
   }
 
   return body
 }
+
+describe("BackgroundManager.tryCompleteTask", () => {
+  let manager: BackgroundManager
+
+  beforeEach(() => {
+    // #given
+    manager = createBackgroundManager()
+    stubNotifyParentSession(manager)
+  })
+
+  afterEach(() => {
+    manager.shutdown()
+  })
+
+  test("should release concurrency and clear key on completion", async () => {
+    // #given
+    const concurrencyKey = "anthropic/claude-opus-4-5"
+    const concurrencyManager = getConcurrencyManager(manager)
+    await concurrencyManager.acquire(concurrencyKey)
+
+    const task: BackgroundTask = {
+      id: "task-1",
+      sessionID: "session-1",
+      parentSessionID: "session-parent",
+      parentMessageID: "msg-1",
+      description: "test task",
+      prompt: "test",
+      agent: "explorer",
+      status: "running",
+      startedAt: new Date(),
+      concurrencyKey,
+    }
+
+    // #when
+    const completed = await tryCompleteTaskForTest(manager, task)
+
+    // #then
+    expect(completed).toBe(true)
+    expect(task.status).toBe("completed")
+    expect(task.concurrencyKey).toBeUndefined()
+    expect(concurrencyManager.getCount(concurrencyKey)).toBe(0)
+  })
+
+  test("should prevent double completion and double release", async () => {
+    // #given
+    const concurrencyKey = "anthropic/claude-opus-4-5"
+    const concurrencyManager = getConcurrencyManager(manager)
+    await concurrencyManager.acquire(concurrencyKey)
+
+    const task: BackgroundTask = {
+      id: "task-1",
+      sessionID: "session-1",
+      parentSessionID: "session-parent",
+      parentMessageID: "msg-1",
+      description: "test task",
+      prompt: "test",
+      agent: "explorer",
+      status: "running",
+      startedAt: new Date(),
+      concurrencyKey,
+    }
+
+    // #when
+    await tryCompleteTaskForTest(manager, task)
+    const secondAttempt = await tryCompleteTaskForTest(manager, task)
+
+    // #then
+    expect(secondAttempt).toBe(false)
+    expect(task.status).toBe("completed")
+    expect(concurrencyManager.getCount(concurrencyKey)).toBe(0)
+  })
+})
+
+describe("BackgroundManager.trackTask", () => {
+  let manager: BackgroundManager
+
+  beforeEach(() => {
+    // #given
+    manager = createBackgroundManager()
+    stubNotifyParentSession(manager)
+  })
+
+  afterEach(() => {
+    manager.shutdown()
+  })
+
+  test("should not double acquire on duplicate registration", async () => {
+    // #given
+    const input = {
+      taskId: "task-1",
+      sessionID: "session-1",
+      parentSessionID: "parent-session",
+      description: "external task",
+      agent: "delegate_task",
+      concurrencyKey: "external-key",
+    }
+
+    // #when
+    await manager.trackTask(input)
+    await manager.trackTask(input)
+
+    // #then
+    const concurrencyManager = getConcurrencyManager(manager)
+    expect(concurrencyManager.getCount("external-key")).toBe(1)
+    expect(getTaskMap(manager).size).toBe(1)
+  })
+})
+
+describe("BackgroundManager.resume concurrency key", () => {
+  let manager: BackgroundManager
+
+  beforeEach(() => {
+    // #given
+    manager = createBackgroundManager()
+    stubNotifyParentSession(manager)
+  })
+
+  afterEach(() => {
+    manager.shutdown()
+  })
+
+  test("should re-acquire using external task concurrency key", async () => {
+    // #given
+    const task = await manager.trackTask({
+      taskId: "task-1",
+      sessionID: "session-1",
+      parentSessionID: "parent-session",
+      description: "external task",
+      agent: "delegate_task",
+      concurrencyKey: "external-key",
+    })
+
+    await tryCompleteTaskForTest(manager, task)
+
+    // #when
+    await manager.resume({
+      sessionId: "session-1",
+      prompt: "resume",
+      parentSessionID: "parent-session-2",
+      parentMessageID: "msg-2",
+    })
+
+    // #then
+    const concurrencyManager = getConcurrencyManager(manager)
+    expect(concurrencyManager.getCount("external-key")).toBe(1)
+    expect(task.concurrencyKey).toBe("external-key")
+  })
+})
+
+describe("BackgroundManager process cleanup", () => {
+  test("should remove listeners after last shutdown", () => {
+    // #given
+    const signals = getCleanupSignals()
+    const baseline = getListenerCounts(signals)
+    const managerA = createBackgroundManager()
+    const managerB = createBackgroundManager()
+
+    // #when
+    const afterCreate = getListenerCounts(signals)
+    managerA.shutdown()
+    const afterFirstShutdown = getListenerCounts(signals)
+    managerB.shutdown()
+    const afterSecondShutdown = getListenerCounts(signals)
+
+    // #then
+    for (const signal of signals) {
+      expect(afterCreate[signal]).toBe(baseline[signal] + 1)
+      expect(afterFirstShutdown[signal]).toBe(baseline[signal] + 1)
+      expect(afterSecondShutdown[signal]).toBe(baseline[signal])
+    }
+  })
+})
+

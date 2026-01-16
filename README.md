@@ -5,8 +5,8 @@
 
 > [!TIP]
 >
-> [![The Orchestrator is now available in beta.](./.github/assets/orchestrator-sisyphus.png?v=3)](https://github.com/code-yeongyu/oh-my-opencode/releases/tag/v3.0.0-beta.1)
-> > **The Orchestrator is now available in beta. Use `oh-my-opencode@3.0.0-beta.1` to install it.**
+> [![The Orchestrator is now available in beta.](./.github/assets/orchestrator-sisyphus.png?v=3)](https://github.com/code-yeongyu/oh-my-opencode/releases/tag/v3.0.0-beta.7)
+> > **The Orchestrator is now available in beta. Use `oh-my-opencode@3.0.0-beta.7` to install it.**
 >
 > Be with us!
 >
@@ -28,8 +28,29 @@
 
 > This is coding on steroids—`oh-my-opencode` in action. Run background agents, call specialized agents like oracle, librarian, and frontend engineer. Use crafted LSP/AST tools, curated MCPs, and a full Claude Code compatibility layer.
 
+# Claude OAuth Access Notice
 
-**Notice: Do not use expensive models for librarian. This is not only unhelpful to you, but also burdens LLM providers. Use models like Claude Haiku, Gemini Flash, GLM 4.7, or MiniMax instead.**
+## TL;DR
+
+> Q. Can I use oh-my-opencode?
+
+Yes.
+
+> Q. Can I use it with my Claude Code subscription?
+
+Yes, technically possible. But I cannot recommend using it.
+
+## FULL
+
+> As of January 2026, Anthropic has restricted third-party OAuth access citing ToS violations.
+> 
+> [**Anthropic has cited this project, oh-my-opencode as justification for blocking opencode.**](https://x.com/thdxr/status/2010149530486911014)
+>
+> Indeed, some plugins that spoof Claude Code's oauth request signatures exist in the community.
+>
+> These tools may work regardless of technical detectability, but users should be aware of ToS implications, and I personally cannot recommend to use those.
+>
+> This project is not responsible for any issues arising from the use of unofficial tools, and **we do not have any custom implementations of those oauth systems.**
 
 
 <div align="center">
@@ -76,6 +97,9 @@
 
 ## Contents
 
+- [Claude OAuth Access Notice](#claude-oauth-access-notice)
+  - [Reviews](#reviews)
+  - [Contents](#contents)
 - [Oh My OpenCode](#oh-my-opencode)
   - [Just Skip Reading This Readme](#just-skip-reading-this-readme)
     - [It's the Age of Agents](#its-the-age-of-agents)
@@ -94,8 +118,9 @@
       - [Google Gemini (Antigravity OAuth)](#google-gemini-antigravity-oauth)
         - [Model Configuration](#model-configuration)
         - [oh-my-opencode Agent Model Override](#oh-my-opencode-agent-model-override)
-      - [OpenAI (ChatGPT Plus/Pro)](#openai-chatgpt-pluspro)
-        - [Model Configuration](#model-configuration-1)
+      - [GitHub Copilot (Fallback Provider)](#github-copilot-fallback-provider)
+        - [Model Mappings](#model-mappings)
+        - [Setup](#setup)
     - [⚠️ Warning](#️-warning)
     - [Verify the setup](#verify-the-setup)
     - [Say 'Congratulations! 🎉' to the user](#say-congratulations--to-the-user)
@@ -236,12 +261,14 @@ If you don't want all this, as mentioned, you can just pick and choose specific 
 Run the interactive installer:
 
 ```bash
-bunx oh-my-opencode install
-# or use npx if bunx doesn't work
 npx oh-my-opencode install
+# or with bun
+bunx oh-my-opencode install
 ```
 
-> **Note for Ubuntu/Debian users**: If you installed Bun via Snap (`/snap/bin/bun`), `bunx` will fail with "script not found" due to Snap's sandboxing. Either use `npx` instead, or reinstall Bun via the official installer: `curl -fsSL https://bun.sh/install | bash`
+> **Note**: The CLI ships with standalone binaries for all major platforms. No runtime (Bun/Node.js) is required for CLI execution after installation.
+>
+> **Supported platforms**: macOS (ARM64, x64), Linux (x64, ARM64, Alpine/musl), Windows (x64)
 
 Follow the prompts to configure your Claude, ChatGPT, and Gemini subscriptions. After installation, authenticate your providers as instructed.
 
@@ -381,37 +408,46 @@ opencode auth login
 
 **Multi-Account Load Balancing**: The plugin supports up to 10 Google accounts. When one account hits rate limits, it automatically switches to the next available account.
 
-#### OpenAI (ChatGPT Plus/Pro)
+#### GitHub Copilot (Fallback Provider)
 
-First, add the opencode-openai-codex-auth plugin:
+GitHub Copilot is supported as a **fallback provider** when native providers (Claude, ChatGPT, Gemini) are unavailable. The installer configures Copilot with lower priority than native providers.
 
-```json
-{
-  "plugin": [
-    "oh-my-opencode",
-    "opencode-openai-codex-auth@4.3.0"
-  ]
-}
+**Priority**: Native providers (Claude/ChatGPT/Gemini) > GitHub Copilot > Free models
+
+##### Model Mappings
+
+When GitHub Copilot is enabled, oh-my-opencode uses these model assignments:
+
+| Agent         | Model                            |
+| ------------- | -------------------------------- |
+| **Sisyphus**  | `github-copilot/claude-opus-4.5` |
+| **Oracle**    | `github-copilot/gpt-5.2`         |
+| **Explore**   | `grok code` (default)            |
+| **Librarian** | `glm 4.7 free` (default)         |
+
+GitHub Copilot acts as a proxy provider, routing requests to underlying models based on your subscription.
+
+##### Setup
+
+Run the installer and select "Yes" for GitHub Copilot:
+
+```bash
+bunx oh-my-opencode install
+# Select your subscriptions (Claude, ChatGPT, Gemini)
+# When prompted: "Do you have a GitHub Copilot subscription?" → Select "Yes"
 ```
 
-##### Model Configuration
+Or use non-interactive mode:
 
-You'll also need full model settings in `opencode.json`.
-Read the [opencode-openai-codex-auth documentation](https://github.com/numman-ali/opencode-openai-codex-auth), copy provider/models config from [`config/opencode-modern.json`](https://github.com/numman-ali/opencode-openai-codex-auth/blob/main/config/opencode-modern.json) (for OpenCode v1.0.210+) or [`config/opencode-legacy.json`](https://github.com/numman-ali/opencode-openai-codex-auth/blob/main/config/opencode-legacy.json) (for older versions), and merge carefully to avoid breaking the user's existing setup.
+```bash
+bunx oh-my-opencode install --no-tui --claude=no --chatgpt=no --gemini=no --copilot=yes
+```
 
-**Available models**: `openai/gpt-5.2`, `openai/gpt-5.2-codex`, `openai/gpt-5.1-codex-max`, `openai/gpt-5.1-codex`, `openai/gpt-5.1-codex-mini`, `openai/gpt-5.1`
-
-**Variants** (OpenCode v1.0.210+): Use `--variant=<none|low|medium|high|xhigh>` for reasoning effort control.
-
-Then authenticate:
+Then authenticate with GitHub:
 
 ```bash
 opencode auth login
-# Interactive Terminal: Provider: Select OpenAI
-# Interactive Terminal: Login method: Select ChatGPT Plus/Pro (Codex Subscription)
-# Interactive Terminal: Guide user through OAuth flow in browser
-# Wait for completion
-# Verify success and confirm with user
+# Select: GitHub → Authenticate via OAuth
 ```
 
 
@@ -498,7 +534,7 @@ To remove oh-my-opencode:
 - **Sisyphus** (`anthropic/claude-opus-4-5`): **The default agent.** A powerful AI orchestrator for OpenCode. Plans, delegates, and executes complex tasks using specialized subagents with aggressive parallel execution. Emphasizes background task delegation and todo-driven workflow. Uses Claude Opus 4.5 with extended thinking (32k budget) for maximum reasoning capability.
 - **oracle** (`openai/gpt-5.2`): Architecture, code review, strategy. Uses GPT-5.2 for its stellar logical reasoning and deep analysis. Inspired by AmpCode.
 - **librarian** (`opencode/glm-4.7-free`): Multi-repo analysis, doc lookup, implementation examples. Uses GLM-4.7 Free for deep codebase understanding and GitHub research with evidence-based answers. Inspired by AmpCode.
-- **explorer** (`opencode/grok-code`, `google/gemini-3-flash`, or `anthropic/claude-haiku-4-5`): Fast codebase exploration and pattern matching. Uses Gemini 3 Flash when Antigravity auth is configured, Haiku when Claude max20 is available, otherwise Grok. Inspired by Claude Code.
+- **explore** (`opencode/grok-code`, `google/gemini-3-flash`, or `anthropic/claude-haiku-4-5`): Fast codebase exploration and pattern matching. Uses Gemini 3 Flash when Antigravity auth is configured, Haiku when Claude max20 is available, otherwise Grok. Inspired by Claude Code.
 - **frontend-ui-ux-engineer** (`google/gemini-3-pro-preview`): A designer turned developer. Builds gorgeous UIs. Gemini excels at creative, beautiful UI code.
 - **document-writer** (`google/gemini-3-flash`): Technical writing expert. Gemini is a wordsmith—writes prose that flows.
 - **multimodal-looker** (`google/gemini-3-flash`): Visual content specialist. Analyzes PDFs, images, diagrams to extract information.
@@ -508,7 +544,7 @@ The main agent invokes these automatically, but you can call them explicitly:
 ```
 Ask @oracle to review this design and propose an architecture
 Ask @librarian how this is implemented—why does the behavior keep changing?
-Ask @explorer for the policy on this feature
+Ask @explore for the policy on this feature
 ```
 
 Customize agent models, prompts, and permissions in `oh-my-opencode.json`. See [Configuration](#configuration).
@@ -541,21 +577,13 @@ Syntax highlighting, autocomplete, refactoring, navigation, analysis—and now a
 The features in your editor? Other agents can't touch them.
 Hand your best tools to your best colleagues. Now they can properly refactor, navigate, and analyze.
 
-- **lsp_hover**: Type info, docs, signatures at position
-- **lsp_goto_definition**: Jump to symbol definition
-- **lsp_find_references**: Find all usages across workspace
-- **lsp_document_symbols**: Get file symbol outline
-- **lsp_workspace_symbols**: Search symbols by name across project
 - **lsp_diagnostics**: Get errors/warnings before build
-- **lsp_servers**: List available LSP servers
 - **lsp_prepare_rename**: Validate rename operation
 - **lsp_rename**: Rename symbol across workspace
-- **lsp_code_actions**: Get available quick fixes/refactorings
-- **lsp_code_action_resolve**: Apply code action
 - **ast_grep_search**: AST-aware code pattern search (25 languages)
 - **ast_grep_replace**: AST-aware code replacement
 - **call_omo_agent**: Spawn specialized explorer/librarian agents. Supports `run_in_background` parameter for async execution.
-- **sisyphus_task**: Category-based task delegation with specialized agents. Supports pre-configured categories (visual, business-logic) or direct agent targeting. Use `background_output` to retrieve results and `background_cancel` to cancel tasks. See [Categories](#categories).
+- **delegate_task**: Category-based task delegation with specialized agents. Supports pre-configured categories (visual, business-logic) or direct agent targeting. Use `background_output` to retrieve results and `background_cancel` to cancel tasks. See [Categories](#categories).
 
 #### Session Management
 
@@ -745,7 +773,7 @@ When agents thrive, you thrive. But I want to help you directly too.
   - Configure in `oh-my-opencode.json`: `{ "ralph_loop": { "enabled": true, "default_max_iterations": 100 } }`
 - **Keyword Detector**: Automatically detects keywords in your prompts and activates specialized modes:
   - `ultrawork` / `ulw`: Maximum performance mode with parallel agent orchestration
-  - `search` / `find` / `찾아` / `検索`: Maximized search effort with parallel explorer and librarian agents
+  - `search` / `find` / `찾아` / `検索`: Maximized search effort with parallel explore and librarian agents
   - `analyze` / `investigate` / `분석` / `調査`: Deep analysis mode with multi-phase expert consultation
 - **Todo Continuation Enforcer**: Makes agents finish all TODOs before stopping. Kills the chronic LLM habit of quitting halfway.
 - **Comment Checker**: LLMs love comments. Too many comments. This reminds them to cut the noise. Smartly ignores valid patterns (BDD, directives, docstrings) and demands justification for the rest. Clean code wins.
@@ -887,14 +915,14 @@ Or disable via `disabled_agents` in `~/.config/opencode/oh-my-opencode.json` or 
 }
 ```
 
-Available agents: `oracle`, `librarian`, `explorer`, `frontend-ui-ux-engineer`, `document-writer`, `multimodal-looker`
+Available agents: `oracle`, `librarian`, `explore`, `frontend-ui-ux-engineer`, `document-writer`, `multimodal-looker`
 
 ### Built-in Skills
 
 Oh My OpenCode includes built-in skills that provide additional capabilities:
 
 - **playwright**: Browser automation with Playwright MCP. Use for web scraping, testing, screenshots, and browser interactions.
-- **git-master**: Git expert for atomic commits, rebase/squash, and history search (blame, bisect, log -S). STRONGLY RECOMMENDED: Use with `sisyphus_task(category='quick', skills=['git-master'], ...)` to save context.
+- **git-master**: Git expert for atomic commits, rebase/squash, and history search (blame, bisect, log -S). STRONGLY RECOMMENDED: Use with `delegate_task(category='quick', skills=['git-master'], ...)` to save context.
 
 Disable built-in skills via `disabled_skills` in `~/.config/opencode/oh-my-opencode.json` or `.opencode/oh-my-opencode.json`:
 
@@ -1033,7 +1061,7 @@ Configure concurrency limits for background agent tasks. This controls how many 
 
 ### Categories
 
-Categories enable domain-specific task delegation via the `sisyphus_task` tool. Each category applies runtime presets (model, temperature, prompt additions) when calling the `Sisyphus-Junior` agent.
+Categories enable domain-specific task delegation via the `delegate_task` tool. Each category applies runtime presets (model, temperature, prompt additions) when calling the `Sisyphus-Junior` agent.
 
 **Default Categories:**
 
@@ -1045,12 +1073,12 @@ Categories enable domain-specific task delegation via the `sisyphus_task` tool. 
 **Usage:**
 
 ```
-// Via sisyphus_task tool
-sisyphus_task(category="visual", prompt="Create a responsive dashboard component")
-sisyphus_task(category="business-logic", prompt="Design the payment processing flow")
+// Via delegate_task tool
+delegate_task(category="visual", prompt="Create a responsive dashboard component")
+delegate_task(category="business-logic", prompt="Design the payment processing flow")
 
 // Or target a specific agent directly
-sisyphus_task(agent="oracle", prompt="Review this architecture")
+delegate_task(agent="oracle", prompt="Review this architecture")
 ```
 
 **Custom Categories:**
@@ -1137,7 +1165,6 @@ Opt-in experimental features that may change or be removed in future versions. U
 ```json
 {
   "experimental": {
-    "preemptive_compaction_threshold": 0.85,
     "truncate_all_tool_outputs": true,
     "aggressive_truncation": true,
     "auto_resume": true
@@ -1145,13 +1172,11 @@ Opt-in experimental features that may change or be removed in future versions. U
 }
 ```
 
-| Option                            | Default | Description                                                                                                                                                                                   |
-| --------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `preemptive_compaction_threshold` | `0.85`  | Threshold percentage (0.5-0.95) to trigger preemptive compaction. The `preemptive-compaction` hook is enabled by default; this option customizes the threshold.                               |
-| `truncate_all_tool_outputs`       | `false` | Truncates ALL tool outputs instead of just whitelisted tools (Grep, Glob, LSP, AST-grep). Tool output truncator is enabled by default - disable via `disabled_hooks`.                         |
-| `aggressive_truncation`           | `false` | When token limit is exceeded, aggressively truncates tool outputs to fit within limits. More aggressive than the default truncation behavior. Falls back to summarize/revert if insufficient. |
-| `auto_resume`                     | `false` | Automatically resumes session after successful recovery from thinking block errors or thinking disabled violations. Extracts the last user message and continues.                             |
-| `dcp_for_compaction`              | `false` | Enable DCP (Dynamic Context Pruning) for compaction - runs first when token limit exceeded. Prunes duplicate tool calls and old tool outputs before running compaction.                       |
+| Option                      | Default | Description                                                                                                                                                                                   |
+| --------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `truncate_all_tool_outputs` | `false` | Truncates ALL tool outputs instead of just whitelisted tools (Grep, Glob, LSP, AST-grep). Tool output truncator is enabled by default - disable via `disabled_hooks`.                         |
+| `aggressive_truncation`     | `false` | When token limit is exceeded, aggressively truncates tool outputs to fit within limits. More aggressive than the default truncation behavior. Falls back to summarize/revert if insufficient. |
+| `auto_resume`               | `false` | Automatically resumes session after successful recovery from thinking block errors or thinking disabled violations. Extracts the last user message and continues.                             |
 
 **Warning**: These features are experimental and may cause unexpected behavior. Enable only if you understand the implications.
 
